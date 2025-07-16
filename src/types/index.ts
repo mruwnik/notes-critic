@@ -12,9 +12,9 @@ export interface ConversationTurn {
 }
 
 export type UserInput =
-    | { type: 'file_change'; filename: string; diff: string; prompt: string }
-    | { type: 'chat_message'; message: string; prompt: string }
-    | { type: 'manual_feedback'; filename: string; content: string; prompt: string };
+    | { type: 'file_change'; filename: string; diff: string; prompt: string; files?: LLMFile[] }
+    | { type: 'chat_message'; message: string; prompt: string; files?: LLMFile[] }
+    | { type: 'manual_feedback'; filename: string; content: string; prompt: string; files?: LLMFile[] };
 
 export interface AiResponse {
     thinking?: string;
@@ -37,6 +37,7 @@ export interface NotesCriticSettings {
     mcpMode: 'disabled' | 'enabled' | 'required';
     feedbackThreshold: number;
     feedbackCooldownSeconds: number;
+    feedbackPrompt: string;
 }
 
 export interface MCPServerConfig {
@@ -89,6 +90,14 @@ export const DEFAULT_SETTINGS: NotesCriticSettings = {
     feedbackThreshold: 3,
     feedbackCooldownSeconds: 30,
     systemPrompt: 'You are a helpful writing assistant. Provide constructive feedback on notes.',
+    feedbackPrompt: `Please provide feedback on the changes made to "\${noteName}".
+
+The current note content is attached as a file for context.
+
+Changes made:
+\${diff}
+
+Please provide constructive feedback focusing on the recent changes.`,
     model: 'anthropic/claude-3-sonnet-20240229',
     anthropicApiKey: '',
     openaiApiKey: '',

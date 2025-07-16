@@ -1,6 +1,6 @@
 import { ItemView, WorkspaceLeaf, TFile, Notice, Plugin } from 'obsidian';
-import { CHAT_VIEW_CONFIG, NoteSnapshot, ConversationTurn, UserInput, AiResponse, NotesCriticSettings } from 'types';
-import { getFeedback, generateDiff, makePrompt } from 'feedback/feedbackProvider';
+import { CHAT_VIEW_CONFIG, NoteSnapshot, ConversationTurn, UserInput, NotesCriticSettings, LLMFile } from 'types';
+import { getFeedback, generateDiff } from 'feedback/feedbackProvider';
 import { FeedbackDisplay } from './components/FeedbackDisplay';
 import { ChatInput } from './components/ChatInput';
 import { ControlPanel } from './components/ControlPanel';
@@ -156,13 +156,16 @@ export class ChatView extends ItemView {
         }
 
         const diff = generateDiff(snapshot.baseline, snapshot.current);
-        const prompt = makePrompt(this.currentFile.basename, snapshot.current, diff);
-
         const userInput: UserInput = {
             type: 'file_change',
             filename: this.currentFile.basename,
             diff,
-            prompt
+            prompt: this.plugin.settings.feedbackPrompt.replace(/\${noteName}/g, this.currentFile.basename).replace(/\${diff}/g, diff),
+            files: [{
+                type: 'text',
+                path: this.currentFile.path,
+                name: this.currentFile.basename
+            }]
         };
 
         await this.createConversationTurn(userInput);
@@ -201,7 +204,8 @@ export class ChatView extends ItemView {
             for await (const chunk of getFeedback(
                 turn.userInput,
                 this.conversation.slice(0, -1), // All previous turns
-                this.plugin.settings
+                this.plugin.settings,
+                this.app
             )) {
                 if (chunk.type === 'thinking') {
                     streamedThinking += chunk.content;

@@ -394,6 +394,7 @@ class AnthropicProvider extends BaseLLMProvider {
             }
         }
 
+        console.log(wrappedMessages)
         return {
             url: 'https://api.anthropic.com/v1/messages',
             method: 'POST',
@@ -494,8 +495,6 @@ class AnthropicProvider extends BaseLLMProvider {
             model: this.getDefaultTestModel()
         };
     }
-
-
 }
 
 // Factory function and main export
@@ -539,31 +538,3 @@ export class LLMProvider {
         }
     }
 }
-
-export async function createChatCompletion(
-    messages: LLMMessage[],
-    settings: NotesCriticSettings,
-    app: App,
-    onChunk: (chunk: LLMStreamChunk) => void,
-    systemPrompt?: string
-): Promise<string> {
-    const provider = new LLMProvider(settings, app);
-    let fullResponse = '';
-
-    try {
-        for await (const chunk of provider.callLLM(messages, systemPrompt)) {
-            onChunk(chunk);
-
-            if (chunk.type === 'content') {
-                fullResponse += chunk.content;
-            } else if (chunk.type === 'error') {
-                throw new Error(chunk.content);
-            }
-        }
-    } catch (error) {
-        new Notice(`LLM Error: ${error.message}`);
-        throw error;
-    }
-
-    return fullResponse;
-} 

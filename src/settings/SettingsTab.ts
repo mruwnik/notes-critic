@@ -329,6 +329,13 @@ export class NotesCriticSettingsTab extends PluginSettingTab {
             field: 'systemPrompt'
         });
 
+        this.createTextAreaSetting({
+            name: 'Feedback Prompt',
+            desc: 'Instructions for the AI model on how to provide feedback',
+            placeholder: 'You are a helpful writing assistant...',
+            field: 'feedbackPrompt'
+        });
+
         this.createDropdownSetting({
             name: 'Model',
             desc: 'Select which AI model to use for feedback',

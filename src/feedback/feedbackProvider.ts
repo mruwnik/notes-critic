@@ -1,25 +1,15 @@
 import { ConversationTurn, UserInput, LLMMessage, LLMStreamChunk, NotesCriticSettings } from 'types';
 import { LLMProvider } from 'llm/llmProvider';
+import { App } from 'obsidian';
 
-export const makePrompt = (noteName: string, content: string, diff: string) => {
-    return `Please provide feedback on the changes made to "${noteName}".
-
-Current content:
-${content}
-
-Changes made:
-${diff}
-
-Please provide constructive feedback focusing on the recent changes.
-    `
-}
 
 export async function* getFeedback(
     userInput: UserInput,
     history: ConversationTurn[],
-    settings: NotesCriticSettings
+    settings: NotesCriticSettings,
+    app: App
 ): AsyncGenerator<LLMStreamChunk, void, unknown> {
-    const provider = new LLMProvider(settings);
+    const provider = new LLMProvider(settings, app);
 
     // Construct history messages from recent turns
     const historyMessages: LLMMessage[] = [];
@@ -40,7 +30,8 @@ export async function* getFeedback(
         ...historyMessages,
         {
             role: 'user',
-            content: userInput.prompt
+            content: userInput.prompt,
+            files: userInput.files
         }
     ];
 
@@ -49,16 +40,29 @@ export async function* getFeedback(
 }
 
 function getUserInputMessage(userInput: UserInput): string {
+    let message = '';
+
     switch (userInput.type) {
         case 'chat_message':
-            return userInput.message;
+            message = userInput.message;
+            break;
         case 'file_change':
-            return `Changes made to "${userInput.filename}":\n${userInput.diff}`;
+            message = `Changes made to "${userInput.filename}":\n${userInput.diff}`;
+            break;
         case 'manual_feedback':
-            return `Please provide feedback on "${userInput.filename}".`;
+            message = `Please provide feedback on "${userInput.filename}".`;
+            break;
         default:
-            return '';
+            message = '';
     }
+
+    // Add note about attached files if they exist
+    if (userInput.files && userInput.files.length > 0) {
+        const fileNames = userInput.files.map(f => f.name || f.path).join(', ');
+        message += `\n\nAttached files: ${fileNames}`;
+    }
+
+    return message;
 }
 
 export function generateDiff(baseline: string, current: string): string {
