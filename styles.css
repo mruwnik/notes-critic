@@ -1,0 +1,298 @@
+/*
+
+This CSS file will be included with your plugin, and
+available in the app when your plugin is enabled.
+
+If your plugin does not need CSS, delete this file.
+
+*/
+
+/* Notes Critic Chat View Styles */
+
+.notes-critic-header-container {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 1rem;
+    padding-bottom: 0.5rem;
+    border-bottom: 1px solid var(--background-modifier-border);
+}
+
+.notes-critic-header {
+    font-size: 1.2em;
+    font-weight: bold;
+    margin: 0;
+}
+
+.notes-critic-controls {
+    display: flex;
+    gap: 0.5rem;
+    align-items: center;
+}
+
+.notes-critic-button {
+    flex: 1;
+    padding: 0.5rem 1rem;
+    background: var(--interactive-accent);
+    color: var(--text-on-accent);
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 0.9em;
+    font-weight: 500;
+}
+
+.notes-critic-button:hover {
+    background: var(--interactive-accent-hover);
+}
+
+.notes-critic-button:disabled {
+    background: var(--background-modifier-border);
+    color: var(--text-muted);
+    cursor: not-allowed;
+}
+
+.notes-critic-icon-button {
+    padding: 0.4rem 0.6rem;
+    background: var(--interactive-normal);
+    color: var(--text-normal);
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 1rem;
+    line-height: 1;
+    transition: background-color 0.2s;
+}
+
+.notes-critic-icon-button:hover {
+    background: var(--interactive-hover);
+}
+
+.notes-critic-icon-button:disabled {
+    background: var(--background-modifier-border);
+    color: var(--text-muted);
+    cursor: not-allowed;
+    opacity: 0.5;
+}
+
+.notes-critic-messages {
+    flex: 1;
+    overflow-y: auto;
+    padding-right: 4px;
+}
+
+.notes-critic-feedback-entry {
+    background: var(--background-primary-alt);
+    border: 1px solid var(--background-modifier-border);
+    border-radius: 8px;
+    padding: 1rem;
+    margin-bottom: 1rem;
+    word-wrap: break-word;
+}
+
+.notes-critic-feedback-entry:last-child {
+    margin-bottom: 0;
+}
+
+.notes-critic-timestamp {
+    color: var(--text-muted);
+    font-size: 0.85em;
+    margin-bottom: 0.75rem;
+    font-weight: 500;
+}
+
+.notes-critic-thinking-section {
+    margin-bottom: 1rem;
+}
+
+.notes-critic-thinking-section summary {
+    cursor: pointer;
+    font-weight: 500;
+    color: var(--text-muted);
+    padding: 0.5rem;
+    background: var(--background-secondary);
+    border-radius: 4px;
+    margin-bottom: 0.5rem;
+}
+
+.notes-critic-thinking-section summary:hover {
+    background: var(--background-modifier-hover);
+}
+
+.notes-critic-thinking-content {
+    background: var(--background-secondary);
+    padding: 0.75rem;
+    border-radius: 4px;
+    font-size: 0.9em;
+    line-height: 1.4;
+    color: var(--text-muted);
+    font-style: italic;
+}
+
+.notes-critic-content-section {
+    line-height: 1.5;
+    font-size: 0.95em;
+}
+
+/* Streaming cursor animation */
+.streaming-cursor {
+    animation: blink 1s infinite;
+    color: var(--text-accent);
+}
+
+@keyframes blink {
+
+    0%,
+    50% {
+        opacity: 1;
+    }
+
+    51%,
+    100% {
+        opacity: 0;
+    }
+}
+
+/* Animated dots for processing states */
+.processing-dots::after {
+    content: '';
+    animation: dots 1.5s infinite;
+}
+
+@keyframes dots {
+    0% {
+        content: '';
+    }
+
+    25% {
+        content: '.';
+    }
+
+    50% {
+        content: '..';
+    }
+
+    75% {
+        content: '...';
+    }
+
+    100% {
+        content: '';
+    }
+}
+
+/* Responsive adjustments for narrow sidebars */
+@media (max-width: 400px) {
+    .notes-critic-controls {
+        flex-direction: column;
+    }
+
+    .notes-critic-button {
+        flex: none;
+    }
+
+    .notes-critic-feedback-entry {
+        padding: 0.75rem;
+    }
+}
+
+/* Make sure the view takes up full height */
+.view-content {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+}
+
+/* Ensure messages container can scroll properly */
+.notes-critic-messages {
+    min-height: 200px;
+    max-height: calc(100vh - 200px);
+}
+
+/* Chat input styles */
+.notes-critic-input-container {
+    border-top: 1px solid var(--background-modifier-border);
+    padding: 0.75rem;
+    background: var(--background-primary);
+    margin-top: auto;
+}
+
+.notes-critic-input-wrapper {
+    display: flex;
+    gap: 0.5rem;
+    align-items: flex-end;
+}
+
+.notes-critic-textarea {
+    flex: 1;
+    min-height: 36px;
+    max-height: 120px;
+    padding: 0.5rem;
+    border: 1px solid var(--background-modifier-border);
+    border-radius: 4px;
+    background: var(--background-primary);
+    color: var(--text-normal);
+    font-family: var(--font-interface);
+    font-size: 0.9em;
+    resize: none;
+    overflow-y: auto;
+}
+
+.notes-critic-textarea:focus {
+    outline: none;
+    border-color: var(--interactive-accent);
+}
+
+.notes-critic-send-button {
+    padding: 0.5rem 1rem;
+    background: var(--interactive-accent);
+    color: var(--text-on-accent);
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 0.9em;
+    font-weight: 500;
+    height: 36px;
+    white-space: nowrap;
+}
+
+.notes-critic-send-button:hover {
+    background: var(--interactive-accent-hover);
+}
+
+.notes-critic-send-button:disabled {
+    background: var(--background-modifier-border);
+    color: var(--text-muted);
+    cursor: not-allowed;
+}
+
+/* User message styles */
+.notes-critic-user-message {
+    background: var(--background-primary);
+    border: 1px solid var(--interactive-accent);
+    border-radius: 8px;
+    padding: 1rem;
+    margin-bottom: 1rem;
+    word-wrap: break-word;
+}
+
+.notes-critic-user-message:last-child {
+    margin-bottom: 0;
+}
+
+.notes-critic-user-message .notes-critic-timestamp {
+    color: var(--interactive-accent);
+}
+
+/* Responsive adjustments for narrow sidebars */
+@media (max-width: 400px) {
+    .notes-critic-input-wrapper {
+        flex-direction: column;
+        align-items: stretch;
+    }
+
+    .notes-critic-send-button {
+        width: 100%;
+        margin-top: 0.5rem;
+    }
+}

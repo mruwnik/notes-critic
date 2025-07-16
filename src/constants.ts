@@ -1,0 +1,1 @@
+export const MCP_AUTH_CALLBACK = 'mcp-auth-callback';
