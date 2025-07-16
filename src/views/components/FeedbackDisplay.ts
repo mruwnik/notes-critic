@@ -1,80 +1,112 @@
-import { FeedbackEntry } from '../../types';
+import { ConversationTurn, UserInput, AiResponse } from '../../types';
 
 const CSS_CLASSES = {
     messages: 'notes-critic-messages',
-    feedbackEntry: 'notes-critic-feedback-entry',
+    userInputElement: 'notes-critic-user-input-element',
+    aiResponseElement: 'notes-critic-ai-response-element',
     timestamp: 'notes-critic-timestamp',
+    rerunButton: 'notes-critic-rerun-button',
+    userInputContent: 'notes-critic-user-input-content',
     thinkingSection: 'notes-critic-thinking-section',
     thinkingContent: 'notes-critic-thinking-content',
-    contentSection: 'notes-critic-content-section',
-    userMessage: 'notes-critic-user-message'
+    responseContent: 'notes-critic-response-content'
 };
 
 export class FeedbackDisplay {
     private container: HTMLElement;
+    private onRerunCallback?: (turn: ConversationTurn) => void;
 
-    constructor(parent: Element) {
+    constructor(parent: Element, onRerun?: (turn: ConversationTurn) => void) {
         this.container = parent.createEl('div', {
             cls: CSS_CLASSES.messages
         });
+        this.onRerunCallback = onRerun;
     }
 
-    createFeedbackElement(entry: FeedbackEntry): HTMLElement {
-        const feedbackEl = this.container.createEl('div', {
-            cls: CSS_CLASSES.feedbackEntry
+    createConversationTurn(turn: ConversationTurn): HTMLElement {
+        // Create user input element
+        const userInputEl = this.createUserInputElement(turn);
+
+        // Create AI response element
+        const aiResponseEl = this.createAiResponseElement(turn);
+
+        this.scrollToBottom();
+        return aiResponseEl; // Return AI response element for updates
+    }
+
+    private createUserInputElement(turn: ConversationTurn): HTMLElement {
+        const userInputEl = this.container.createEl('div', {
+            cls: CSS_CLASSES.userInputElement
         });
 
-        feedbackEl.createEl('div', {
-            text: entry.timestamp.toLocaleTimeString(),
+        // Create timestamp
+        userInputEl.createEl('div', {
+            text: turn.timestamp.toLocaleTimeString(),
             cls: CSS_CLASSES.timestamp
         });
 
-        const contentSection = feedbackEl.createEl('div', {
-            cls: CSS_CLASSES.contentSection
+        const contentEl = userInputEl.createEl('div', {
+            cls: CSS_CLASSES.userInputContent
         });
 
-        // Show processing state immediately if there's no feedback content yet
-        if (!entry.feedback && !entry.thinking) {
-            contentSection.innerHTML = '<span class="processing-dots">Processing</span>';
+        // Set content based on input type
+        switch (turn.userInput.type) {
+            case 'file_change':
+                contentEl.innerHTML = `<strong>File changes: ${turn.userInput.filename}</strong><br>${turn.userInput.diff.replace(/\n/g, '<br>')}`;
+                break;
+            case 'chat_message':
+                contentEl.textContent = turn.userInput.message;
+                break;
+            case 'manual_feedback':
+                contentEl.innerHTML = `<strong>Manual feedback: ${turn.userInput.filename}</strong><br>${turn.userInput.content.substring(0, 200)}${turn.userInput.content.length > 200 ? '...' : ''}`;
+                break;
         }
 
-        this.scrollToBottom();
-        return feedbackEl;
+        return userInputEl;
     }
 
-    createUserMessage(message: string): HTMLElement {
-        const userMessageEl = this.container.createEl('div', {
-            cls: CSS_CLASSES.userMessage
+    private createAiResponseElement(turn: ConversationTurn): HTMLElement {
+        const aiResponseEl = this.container.createEl('div', {
+            cls: CSS_CLASSES.aiResponseElement
         });
 
-        userMessageEl.createEl('div', {
-            text: new Date().toLocaleTimeString(),
-            cls: CSS_CLASSES.timestamp
+        const responseContentEl = aiResponseEl.createEl('div', {
+            cls: CSS_CLASSES.responseContent
         });
 
-        userMessageEl.createEl('div', {
-            text: message,
-            cls: CSS_CLASSES.contentSection
-        });
+        // Show processing state immediately if there's no content yet
+        if (!turn.aiResponse.content && !turn.aiResponse.thinking) {
+            responseContentEl.innerHTML = '<span class="processing-dots">Processing</span>';
+        }
 
-        this.scrollToBottom();
-        return userMessageEl;
+        // Add rerun button if callback is provided
+        if (this.onRerunCallback) {
+            const rerunButton = aiResponseEl.createEl('button', {
+                cls: CSS_CLASSES.rerunButton,
+                attr: { 'aria-label': 'Rerun response' }
+            });
+            rerunButton.innerHTML = '↻';
+            rerunButton.addEventListener('click', () => {
+                this.onRerunCallback!(turn);
+            });
+        }
+
+        return aiResponseEl;
     }
 
-    updateFeedbackDisplay(feedbackEl: HTMLElement, entry: FeedbackEntry, isStreaming: boolean = true): void {
-        this.updateThinkingSection(feedbackEl, entry, isStreaming);
-        this.updateContentSection(feedbackEl, entry, isStreaming);
+    updateConversationTurn(aiResponseEl: HTMLElement, turn: ConversationTurn, isStreaming: boolean = true): void {
+        this.updateThinkingSection(aiResponseEl, turn.aiResponse, isStreaming);
+        this.updateResponseContent(aiResponseEl, turn.aiResponse, isStreaming);
         this.scrollToBottom();
     }
 
-    private updateThinkingSection(feedbackEl: HTMLElement, entry: FeedbackEntry, isStreaming: boolean): void {
-        if (!entry.thinking) return;
+    private updateThinkingSection(aiResponseEl: HTMLElement, aiResponse: AiResponse, isStreaming: boolean): void {
+        if (!aiResponse.thinking) return;
 
-        let thinkingSection = feedbackEl.querySelector(`.${CSS_CLASSES.thinkingSection}`) as HTMLDetailsElement;
+        let thinkingSection = aiResponseEl.querySelector(`.${CSS_CLASSES.thinkingSection}`) as HTMLDetailsElement;
 
         if (!thinkingSection) {
-            const contentSection = feedbackEl.querySelector(`.${CSS_CLASSES.contentSection}`) as HTMLElement;
-            thinkingSection = feedbackEl.createEl('details', {
+            thinkingSection = aiResponseEl.createEl('details', {
                 cls: CSS_CLASSES.thinkingSection
             });
 
@@ -85,33 +117,33 @@ export class FeedbackDisplay {
                 cls: CSS_CLASSES.thinkingContent
             });
 
-            feedbackEl.insertBefore(thinkingSection, contentSection);
+            aiResponseEl.insertBefore(thinkingSection, aiResponseEl.firstChild);
         }
 
         const thinkingContent = thinkingSection.querySelector(`.${CSS_CLASSES.thinkingContent}`) as HTMLElement;
         if (thinkingContent) {
-            let displayThinking = entry.thinking;
-            // Only show cursor when thinking is being actively streamed AND no feedback content exists yet
-            if (isStreaming && !entry.thinking.includes('Error:') && !entry.feedback) {
+            let displayThinking = aiResponse.thinking;
+            // Only show cursor when thinking is being actively streamed and no content exists yet
+            if (isStreaming && !aiResponse.thinking.includes('Error:') && !aiResponse.content) {
                 displayThinking += '<span class="streaming-cursor">▋</span>';
             }
             thinkingContent.innerHTML = displayThinking.replace(/\n/g, '<br>');
         }
     }
 
-    private updateContentSection(feedbackEl: HTMLElement, entry: FeedbackEntry, isStreaming: boolean): void {
-        const contentSection = feedbackEl.querySelector(`.${CSS_CLASSES.contentSection}`) as HTMLElement;
-        if (contentSection) {
-            if (entry.feedback) {
-                // Show actual feedback content with cursor when streaming
-                let displayContent = entry.feedback;
-                if (isStreaming && !entry.feedback.includes('Error:')) {
+    private updateResponseContent(aiResponseEl: HTMLElement, aiResponse: AiResponse, isStreaming: boolean): void {
+        const responseContentEl = aiResponseEl.querySelector(`.${CSS_CLASSES.responseContent}`) as HTMLElement;
+        if (responseContentEl) {
+            if (aiResponse.error) {
+                responseContentEl.innerHTML = `<span style="color: var(--text-error);">Error: ${aiResponse.error}</span>`;
+            } else if (aiResponse.content) {
+                let displayContent = aiResponse.content;
+                if (isStreaming && !aiResponse.isComplete) {
                     displayContent += '<span class="streaming-cursor">▋</span>';
                 }
-                contentSection.innerHTML = displayContent.replace(/\n/g, '<br>');
-            } else if (entry.thinking) {
-                // Show "Generating response..." when thinking is happening but no reply yet
-                contentSection.innerHTML = '<span class="processing-dots">Generating response</span>';
+                responseContentEl.innerHTML = displayContent.replace(/\n/g, '<br>');
+            } else if (aiResponse.thinking) {
+                responseContentEl.innerHTML = '<span class="processing-dots">Generating response</span>';
             }
         }
     }
@@ -124,11 +156,11 @@ export class FeedbackDisplay {
         this.container.empty();
     }
 
-    redisplayFeedback(feedbackHistory: FeedbackEntry[]): void {
+    redisplayConversation(turns: ConversationTurn[]): void {
         this.clear();
-        feedbackHistory.forEach(entry => {
-            const feedbackEl = this.createFeedbackElement(entry);
-            this.updateFeedbackDisplay(feedbackEl, entry, false);
+        turns.forEach(turn => {
+            const aiResponseEl = this.createConversationTurn(turn);
+            this.updateConversationTurn(aiResponseEl, turn, false);
         });
     }
 

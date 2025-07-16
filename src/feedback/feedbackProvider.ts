@@ -1,7 +1,7 @@
-import { FeedbackEntry, LLMMessage, LLMStreamChunk, NotesCriticSettings } from 'types';
+import { ConversationTurn, UserInput, LLMMessage, LLMStreamChunk, NotesCriticSettings } from 'types';
 import { LLMProvider } from 'llm/llmProvider';
 
-const makePrompt = (noteName: string, content: string, diff: string) => {
+export const makePrompt = (noteName: string, content: string, diff: string) => {
     return `Please provide feedback on the changes made to "${noteName}".
 
 Current content:
@@ -15,24 +15,23 @@ Please provide constructive feedback focusing on the recent changes.
 }
 
 export async function* getFeedback(
-    noteName: string,
-    content: string,
-    diff: string,
-    history: FeedbackEntry[],
+    userInput: UserInput,
+    history: ConversationTurn[],
     settings: NotesCriticSettings
 ): AsyncGenerator<LLMStreamChunk, void, unknown> {
     const provider = new LLMProvider(settings);
 
-    // Construct history messages from recent entries
+    // Construct history messages from recent turns
     const historyMessages: LLMMessage[] = [];
-    const recentHistory = history.slice(-10); // Last 10 feedback entries
+    const recentHistory = history.slice(-10); // Last 10 turns
 
-    for (const entry of recentHistory) {
-        // Only include entries with non-empty feedback and ai_message (complete conversation pairs)
-        if (entry.feedback && entry.feedback.trim() !== '' &&
-            entry.ai_message && entry.ai_message.trim() !== '') {
-            historyMessages.push({ role: 'user', content: entry.ai_message });
-            historyMessages.push({ role: 'assistant', content: entry.feedback });
+    for (const turn of recentHistory) {
+        // Only include turns with complete responses
+        if (turn.aiResponse.isComplete && turn.aiResponse.content && turn.aiResponse.content.trim() !== '') {
+            // Convert userInput to user message
+            const userMessage = getUserInputMessage(turn.userInput);
+            historyMessages.push({ role: 'user', content: userMessage });
+            historyMessages.push({ role: 'assistant', content: turn.aiResponse.content });
         }
     }
 
@@ -41,12 +40,25 @@ export async function* getFeedback(
         ...historyMessages,
         {
             role: 'user',
-            content: diff && diff.trim() !== '' ? makePrompt(noteName, content, diff) : content
+            content: userInput.prompt
         }
     ];
 
     // Stream the response
     yield* provider.callLLM(messages);
+}
+
+function getUserInputMessage(userInput: UserInput): string {
+    switch (userInput.type) {
+        case 'chat_message':
+            return userInput.message;
+        case 'file_change':
+            return `Changes made to "${userInput.filename}":\n${userInput.diff}`;
+        case 'manual_feedback':
+            return `Please provide feedback on "${userInput.filename}".`;
+        default:
+            return '';
+    }
 }
 
 export function generateDiff(baseline: string, current: string): string {

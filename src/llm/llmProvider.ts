@@ -242,6 +242,11 @@ class AnthropicProvider extends BaseLLMProvider {
         this.validateApiKey();
         const anthropicMessages = this.convertToAnthropicFormat(messages);
 
+        const defaultTools = [{
+            type: "web_search_20250305",
+            name: "web_search",
+            max_uses: 5
+        }]
         const extras: any = {}
         if (tools && tools.length > 0) {
             extras.mcp_servers = [
@@ -275,6 +280,7 @@ class AnthropicProvider extends BaseLLMProvider {
                 messages: anthropicMessages.messages,
                 system: anthropicMessages.system,
                 ...extras,
+                tools: defaultTools,
                 stream: true,
             },
             parseObject: this.createObjectParser()

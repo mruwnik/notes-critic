@@ -142,7 +142,7 @@ export class NotesCriticSettingsTab extends PluginSettingTab {
 
         // Create a custom container instead of using Setting's default layout
         const container = this.containerEl.createDiv();
-        container.className = 'setting-item';
+        container.className = 'setting-item notes-critic-textarea-setting';
 
         // Create the header part (name and description)
         const headerDiv = container.createDiv();
@@ -394,15 +394,29 @@ export class NotesCriticSettingsTab extends PluginSettingTab {
                 'required': 'Required (fail if unavailable)'
             }
         });
+
         // Feedback Settings
+        this.createSectionHeader('Feedback Settings');
+
         this.createTextSetting({
             name: 'Feedback Threshold',
-            desc: 'Number of characters that must change before auto-triggering feedback',
-            placeholder: '200',
+            desc: 'Number of paragraphs that must change before auto-triggering feedback',
+            placeholder: '3',
             field: 'feedbackThreshold',
             parser: (value) => {
                 const threshold = parseInt(value);
                 return (!isNaN(threshold) && threshold > 0) ? threshold : undefined;
+            }
+        });
+
+        this.createTextSetting({
+            name: 'Feedback Cooldown',
+            desc: 'Minimum seconds between auto-triggered feedback',
+            placeholder: '30',
+            field: 'feedbackCooldownSeconds',
+            parser: (value) => {
+                const cooldown = parseInt(value);
+                return (!isNaN(cooldown) && cooldown >= 0) ? cooldown : undefined;
             }
         });
 

@@ -1,5 +1,5 @@
 import { requestUrl } from 'obsidian';
-import { MCP_AUTH_CALLBACK } from 'constants';
+import { MCP_AUTH_CALLBACK } from '../constants';
 
 export interface OAuthServerMetadata {
     issuer: string;

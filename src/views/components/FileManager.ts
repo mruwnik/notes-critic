@@ -47,11 +47,12 @@ export class FileManager {
             const snapshot = this.noteSnapshots.get(fileId);
 
             if (snapshot) {
-                const oldLength = snapshot.current.length;
+                const oldParagraphs = this.countParagraphs(snapshot.current);
                 snapshot.current = content;
-                const lengthDiff = Math.abs(content.length - oldLength);
-                snapshot.changeCount += lengthDiff;
-                return lengthDiff;
+                const newParagraphs = this.countParagraphs(content);
+                const paragraphDiff = Math.abs(newParagraphs - oldParagraphs);
+                snapshot.changeCount += paragraphDiff;
+                return paragraphDiff;
             }
             return 0;
         } catch (error) {
@@ -60,14 +61,19 @@ export class FileManager {
         }
     }
 
+    private countParagraphs(text: string): number {
+        // Split by double newlines or single newlines, filter out empty strings
+        const paragraphs = text.split(/\n+/).filter(p => p.trim().length > 0);
+        return paragraphs.length;
+    }
+
     private createOrUpdateSnapshot(file: TFile, content: string): void {
         const fileId = file.path;
         if (!this.noteSnapshots.has(fileId)) {
             this.noteSnapshots.set(fileId, {
                 baseline: content,
                 current: content,
-                changeCount: 0,
-                lastFeedback: null
+                changeCount: 0
             });
         } else {
             const snapshot = this.noteSnapshots.get(fileId)!;
@@ -91,7 +97,6 @@ export class FileManager {
         if (snapshot) {
             snapshot.baseline = snapshot.current;
             snapshot.changeCount = 0;
-            snapshot.lastFeedback = null;
         }
     }
 
@@ -100,19 +105,6 @@ export class FileManager {
         if (snapshot) {
             snapshot.baseline = snapshot.current;
             snapshot.changeCount = 0;
-            snapshot.lastFeedback = new Date();
         }
-    }
-
-    getSnapshot(file: TFile): NoteSnapshot | null {
-        return this.noteSnapshots.get(file.path) || null;
-    }
-
-    getAllSnapshots(): Map<string, NoteSnapshot> {
-        return new Map(this.noteSnapshots);
-    }
-
-    removeSnapshot(file: TFile): void {
-        this.noteSnapshots.delete(file.path);
     }
 } 

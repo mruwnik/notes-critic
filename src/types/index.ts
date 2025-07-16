@@ -2,18 +2,25 @@ export interface NoteSnapshot {
     baseline: string;
     current: string;
     changeCount: number;
-    lastFeedback: Date | null;
 }
 
-export interface FeedbackEntry {
+export interface ConversationTurn {
+    id: string;
     timestamp: Date;
-    noteId: string;
-    noteName: string;
-    content: string;
-    ai_message: string;
-    diff: string;
-    feedback: string;
+    userInput: UserInput;
+    aiResponse: AiResponse;
+}
+
+export type UserInput =
+    | { type: 'file_change'; filename: string; diff: string; prompt: string }
+    | { type: 'chat_message'; message: string; prompt: string }
+    | { type: 'manual_feedback'; filename: string; content: string; prompt: string };
+
+export interface AiResponse {
     thinking?: string;
+    content: string;
+    isComplete: boolean;
+    error?: string;
 }
 
 export interface NotesCriticSettings {
@@ -29,6 +36,7 @@ export interface NotesCriticSettings {
     mcpServerUrl?: string;
     mcpMode: 'disabled' | 'enabled' | 'required';
     feedbackThreshold: number;
+    feedbackCooldownSeconds: number;
 }
 
 export interface MCPServerConfig {
@@ -69,7 +77,8 @@ export interface ChatMessage {
 }
 
 export const DEFAULT_SETTINGS: NotesCriticSettings = {
-    feedbackThreshold: 100,
+    feedbackThreshold: 3,
+    feedbackCooldownSeconds: 30,
     systemPrompt: 'You are a helpful writing assistant. Provide constructive feedback on notes.',
     model: 'anthropic/claude-3-sonnet-20240229',
     anthropicApiKey: '',

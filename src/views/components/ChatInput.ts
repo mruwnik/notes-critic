@@ -73,25 +73,6 @@ export class ChatInput {
         this.textArea.style.height = 'auto';
     }
 
-    focus(): void {
-        this.textArea.focus();
-    }
-
-    setValue(value: string): void {
-        this.textArea.value = value;
-        this.textArea.style.height = 'auto';
-        this.textArea.style.height = this.textArea.scrollHeight + 'px';
-    }
-
-    getValue(): string {
-        return this.textArea.value;
-    }
-
-    setEnabled(enabled: boolean): void {
-        this.textArea.disabled = !enabled;
-        this.sendButton.disabled = !enabled;
-    }
-
     destroy(): void {
         this.container.remove();
     }

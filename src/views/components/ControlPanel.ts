@@ -48,28 +48,6 @@ export class ControlPanel {
         this.feedbackButton.toggleAttribute('disabled', !enabled);
     }
 
-    setFeedbackButtonText(text: string): void {
-        this.feedbackButton.textContent = text;
-    }
-
-    setFeedbackButtonEnabled(enabled: boolean): void {
-        this.feedbackButton.disabled = !enabled;
-    }
-
-    setClearButtonEnabled(enabled: boolean): void {
-        this.clearButton.disabled = !enabled;
-    }
-
-    setFeedbackButtonIcon(iconName: string): void {
-        this.feedbackButton.empty();
-        setIcon(this.feedbackButton, iconName);
-    }
-
-    setClearButtonIcon(iconName: string): void {
-        this.clearButton.empty();
-        setIcon(this.clearButton, iconName);
-    }
-
     destroy(): void {
         this.container.remove();
     }
