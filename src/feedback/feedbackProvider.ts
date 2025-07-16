@@ -1,64 +1,71 @@
-import { ConversationTurn, UserInput, LLMMessage, LLMStreamChunk, NotesCriticSettings } from 'types';
+import { ConversationTurn, UserInput, LLMMessage, LLMStreamChunk, NotesCriticSettings, TurnStep } from 'types';
 import { LLMProvider } from 'llm/llmProvider';
 import { App } from 'obsidian';
 
 
+const extractMessages = (turn: ConversationTurn): LLMMessage[] => {
+    return turn.steps.filter(s => s.content !== undefined).map(s => ([
+        { role: 'user', content: getUserInputMessage(s), toolCalls: s.toolCalls } as LLMMessage,
+        { role: 'assistant', content: s.content, toolCalls: s.toolCalls } as LLMMessage
+    ])).flat();
+}
+
+
 export async function* getFeedback(
-    userInput: UserInput,
+    turn: TurnStep,
     history: ConversationTurn[],
     settings: NotesCriticSettings,
     app: App
 ): AsyncGenerator<LLMStreamChunk, void, unknown> {
     const provider = new LLMProvider(settings, app);
 
-    // Construct history messages from recent turns
-    const historyMessages: LLMMessage[] = [];
-    const recentHistory = history.slice(-10); // Last 10 turns
+    // // Construct history messages from recent turns
+    // const historyMessages: LLMMessage[] = [];
+    // const recentHistory = history.slice(-10); // Last 10 turns
 
-    for (const turn of recentHistory) {
-        // Only include turns with complete responses
-        if (turn.aiResponse.isComplete && turn.aiResponse.content && turn.aiResponse.content.trim() !== '') {
-            // Convert userInput to user message
-            const userMessage = getUserInputMessage(turn.userInput);
-            historyMessages.push({ role: 'user', content: userMessage });
-            historyMessages.push({ role: 'assistant', content: turn.aiResponse.content });
-        }
-    }
+    // for (const turn of recentHistory) {
+    //     historyMessages.push(...extractMessages(turn));
+    // }
 
-    // Construct the messages array
-    const messages: LLMMessage[] = [
-        ...historyMessages,
-        {
-            role: 'user',
-            content: userInput.prompt,
-            files: userInput.files
-        }
-    ];
+    // // Construct the messages array
+    // const messages: LLMMessage[] = [
+    //     ...historyMessages,
+    //     {
+    //         role: 'user',
+    //         content: turn.userInput.prompt,
+    //         files: turn.userInput.files,
+    //         toolCalls: turn.toolCalls
+    //     }
+    // ];
 
-    // Stream the response
-    yield* provider.callLLM(messages);
+    // console.log("caldling with messages", messages);
+    // // Stream the response
+    yield* provider.callLLM(history);
 }
 
-function getUserInputMessage(userInput: UserInput): string {
+function getUserInputMessage(turn: TurnStep): string {
     let message = '';
 
-    switch (userInput.type) {
+    switch (turn.userInput.type) {
         case 'chat_message':
-            message = userInput.message;
+            message = turn.userInput.message;
             break;
         case 'file_change':
-            message = `Changes made to "${userInput.filename}":\n${userInput.diff}`;
+            message = `Changes made to "${turn.userInput.filename}":\n${turn.userInput.diff}`;
             break;
         case 'manual_feedback':
-            message = `Please provide feedback on "${userInput.filename}".`;
+            message = `Please provide feedback on "${turn.userInput.filename}".`;
+            break;
+        case 'tool_call':
+            message = turn.userInput.prompt;
             break;
         default:
             message = '';
     }
 
     // Add note about attached files if they exist
-    if (userInput.files && userInput.files.length > 0) {
-        const fileNames = userInput.files.map(f => f.name || f.path).join(', ');
+    if (turn.userInput.files && turn.userInput.files.length > 0) {
+        const fileNames = turn.userInput.files.map(f => f.name || f.path).join(', ');
         message += `\n\nAttached files: ${fileNames}`;
     }
 

@@ -1,5 +1,5 @@
 import { ItemView, WorkspaceLeaf, TFile, Notice, Plugin } from 'obsidian';
-import { CHAT_VIEW_CONFIG, NoteSnapshot, ConversationTurn, UserInput, NotesCriticSettings, LLMFile } from 'types';
+import { CHAT_VIEW_CONFIG, NoteSnapshot, ConversationTurn, UserInput, NotesCriticSettings, LLMFile, TurnStep, ToolCall } from 'types';
 import { getFeedback, generateDiff } from 'feedback/feedbackProvider';
 import { FeedbackDisplay } from './components/FeedbackDisplay';
 import { ChatInput } from './components/ChatInput';
@@ -179,58 +179,79 @@ export class ChatView extends ItemView {
         this.updateUI();
     }
 
+    private newStep({ thinking, content, toolCalls }: { thinking?: string, content?: string, toolCalls?: Record<string, ToolCall> }): TurnStep {
+        return {
+            thinking: thinking || '',
+            content: content || undefined,
+            toolCalls: toolCalls || {},
+        }
+    }
+
     private async createConversationTurn(userInput: UserInput) {
         const turn: ConversationTurn = {
             id: Date.now().toString(),
             timestamp: new Date(),
             userInput,
-            aiResponse: {
-                thinking: '',
-                content: '',
-                isComplete: false
-            }
+            steps: [this.newStep({})],
+            isComplete: false,
+            error: undefined
         };
 
         this.conversation.push(turn);
-        await this.streamResponse(turn);
+        console.log("conversation", this.conversation);
+        await this.streamTurnResponse(turn);
     }
 
-    private async streamResponse(turn: ConversationTurn) {
-        const aiResponseEl = this.feedbackDisplay.createConversationTurn(turn);
+    private async streamResponse(step: TurnStep): Promise<TurnStep> {
         let streamedThinking = '';
         let streamedContent = '';
 
-        try {
-            for await (const chunk of getFeedback(
-                turn.userInput,
-                this.conversation.slice(0, -1), // All previous turns
-                this.plugin.settings,
-                this.app
-            )) {
-                if (chunk.type === 'thinking') {
-                    streamedThinking += chunk.content;
-                    turn.aiResponse.thinking = streamedThinking;
-                } else if (chunk.type === 'content') {
-                    streamedContent += chunk.content;
-                    turn.aiResponse.content = streamedContent;
-                } else if (chunk.type === 'error') {
-                    turn.aiResponse.error = chunk.content;
-                    turn.aiResponse.isComplete = true;
-                    this.feedbackDisplay.updateConversationTurn(aiResponseEl, turn, false);
-                    return;
+        for await (const chunk of getFeedback(
+            step,
+            this.conversation, // All previous turns
+            this.plugin.settings,
+            this.app
+        )) {
+            if (chunk.type === 'thinking') {
+                streamedThinking += chunk.content;
+                step.thinking = streamedThinking;
+            } else if (chunk.type === 'signature') {
+                step.signature = chunk.content;
+            } else if (chunk.type === 'content') {
+                streamedContent += chunk.content;
+                step.content = streamedContent;
+            } else if (chunk.type === 'tool_call') {
+                const toolCall = {
+                    id: chunk.toolCall?.id || '',
+                    name: chunk.toolCall?.name || '',
+                    input: chunk.toolCall?.input || {}
+                };
+                step.toolCalls[toolCall.id] = toolCall;
+            } else if (chunk.type === 'tool_call_result') {
+                const toolCall = step.toolCalls[chunk.toolCallResult?.id || ''];
+                if (toolCall) {
+                    toolCall.result = chunk.toolCallResult?.result || {};
                 }
-
-                this.feedbackDisplay.updateConversationTurn(aiResponseEl, turn, true);
+            } else if (chunk.type === 'error') {
+                throw new Error(chunk.content);
             }
+        }
+        return step;
+    }
 
-            // Mark as complete
-            turn.aiResponse.isComplete = true;
+    private async streamTurnResponse(turn: ConversationTurn, stepsLeft: number = 10) {
+        const aiResponseEl = this.feedbackDisplay.createConversationTurn(turn);
+        try {
+            const updatedTurn = await this.streamResponse(turn.steps[turn.steps.length - 1]);
+            if (Object.keys(updatedTurn.toolCalls).length > 0 && stepsLeft > 0) {
+                const newStep = this.newStep({});
+                turn.steps.push(newStep);
+                await this.streamTurnResponse(turn, stepsLeft - 1);
+            }
             this.feedbackDisplay.updateConversationTurn(aiResponseEl, turn, false);
-
         } catch (error) {
-            turn.aiResponse.error = error.message;
-            turn.aiResponse.isComplete = true;
-            this.feedbackDisplay.updateConversationTurn(aiResponseEl, turn, false);
+            turn.error = error.message;
+            turn.isComplete = true;
         }
     }
 
@@ -248,11 +269,11 @@ export class ChatView extends ItemView {
                 ...turn,
                 id: Date.now().toString(),
                 timestamp: new Date(),
-                aiResponse: {
+                steps: [{
                     thinking: '',
-                    content: '',
-                    isComplete: false
-                }
+                    content: undefined,
+                    toolCalls: {}
+                }]
             };
 
             // Add the turn back and redisplay
@@ -260,7 +281,7 @@ export class ChatView extends ItemView {
             this.conversation.push(newTurn);
 
             // Rerun the response
-            await this.streamResponse(newTurn);
+            await this.streamTurnResponse(newTurn);
         } catch (error) {
             console.error('Error rerunning conversation turn:', error);
             new Notice('Error rerunning response. Please try again.');

@@ -4,24 +4,33 @@ export interface NoteSnapshot {
     changeCount: number;
 }
 
+export interface ToolCall {
+    id: string;
+    name: string;
+    input: any;
+    result?: any;
+}
+
+export interface TurnStep {
+    thinking?: string;
+    content?: string;
+    toolCalls: Record<string, ToolCall>;
+    signature?: string;
+}
+
 export interface ConversationTurn {
     id: string;
     timestamp: Date;
     userInput: UserInput;
-    aiResponse: AiResponse;
+    steps: TurnStep[];
+    isComplete: boolean;
+    error?: string;
 }
 
 export type UserInput =
     | { type: 'file_change'; filename: string; diff: string; prompt: string; files?: LLMFile[] }
     | { type: 'chat_message'; message: string; prompt: string; files?: LLMFile[] }
-    | { type: 'manual_feedback'; filename: string; content: string; prompt: string; files?: LLMFile[] };
-
-export interface AiResponse {
-    thinking?: string;
-    content: string;
-    isComplete: boolean;
-    error?: string;
-}
+    | { type: 'manual_feedback'; filename: string; content: string; prompt: string; files?: LLMFile[] }
 
 export interface NotesCriticSettings {
     systemPrompt: string;
@@ -60,8 +69,11 @@ export interface LLMFile {
 
 export interface LLMMessage {
     role: 'user' | 'assistant' | 'system';
-    content?: string;
+    call_id?: string;
+    content?: any;
     files?: LLMFile[];
+    output?: any;
+    toolCalls?: Record<string, ToolCall>;
 }
 
 export interface LLMResponse {
@@ -71,10 +83,20 @@ export interface LLMResponse {
     error?: string;
 }
 
+export type ChunkType = 'thinking' | 'content' | 'error' | 'done' | 'tool_call' | 'tool_call_result' | 'signature';
 export interface LLMStreamChunk {
-    type: 'thinking' | 'content' | 'error' | 'done';
+    type: ChunkType;
     content: string;
     isComplete?: boolean;
+    toolCall?: {
+        name: string;
+        input: any;
+        id: string;
+    };
+    toolCallResult?: {
+        id: string;
+        result: any;
+    };
 }
 
 export interface ChatMessage {

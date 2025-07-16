@@ -75,7 +75,7 @@ export class FeedbackDisplay {
         });
 
         // Show processing state immediately if there's no content yet
-        if (!turn.aiResponse.content && !turn.aiResponse.thinking) {
+        if (!turn.steps[0].content && !turn.steps[0].thinking) {
             responseContentEl.innerHTML = '<span class="processing-dots">Processing</span>';
         }
 
@@ -95,8 +95,8 @@ export class FeedbackDisplay {
     }
 
     updateConversationTurn(aiResponseEl: HTMLElement, turn: ConversationTurn, isStreaming: boolean = true): void {
-        this.updateThinkingSection(aiResponseEl, turn.aiResponse, isStreaming);
-        this.updateResponseContent(aiResponseEl, turn.aiResponse, isStreaming);
+        this.updateThinkingSection(aiResponseEl, turn.steps[0], isStreaming);
+        this.updateResponseContent(aiResponseEl, turn.steps[0], isStreaming);
         this.scrollToBottom();
     }
 

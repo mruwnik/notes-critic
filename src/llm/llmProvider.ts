@@ -1,14 +1,22 @@
-import { LLMMessage, LLMStreamChunk, NotesCriticSettings, LLMFile } from 'types';
+import { LLMStreamChunk, NotesCriticSettings, ConversationTurn, LLMFile, ChunkType } from 'types';
 import { Notice, requestUrl, App } from 'obsidian';
 import { MCPClient, Tool } from 'llm/mcpClient';
 import { streamFromEndpoint, HttpConfig } from 'llm/streaming';
 import { ObsidianFileProcessor } from 'llm/fileUtils';
+import { ObsidianTextEditorTool, TextEditorCommand } from 'llm/tools';
 
 interface StreamParseResult {
     content?: string;
     isComplete?: boolean;
     error?: string;
     isThinking?: boolean;
+    toolCall?: any;
+    toolCallStart?: any;
+    toolCallDelta?: any;
+    toolCallComplete?: any;
+    signature?: any;
+    blockStart?: any;
+    blockComplete?: any;
 }
 
 interface ProviderConfig {
@@ -30,11 +38,10 @@ abstract class BaseLLMProvider {
         this.fileProcessor = new ObsidianFileProcessor(app);
     }
 
-    async *callLLM(messages: LLMMessage[], systemPrompt?: string): AsyncGenerator<LLMStreamChunk, void, unknown> {
+    async *callLLM(messages: ConversationTurn[], systemPrompt?: string): AsyncGenerator<LLMStreamChunk, void, unknown> {
         try {
             // Process files in messages
             const processedMessages = await this.processMessagesWithFiles(messages);
-
             const tools = await this.mcpClient.getTools();
             const config = this.createConfig(
                 processedMessages,
@@ -52,23 +59,22 @@ abstract class BaseLLMProvider {
                 }
                 yield chunk;
             }
-
-            // Send the complete response back to MCP
-            await this.mcpClient.toolCall('send_response', { response: fullResponse });
         } catch (error) {
             yield { type: 'error', content: error.message };
         }
     }
 
-    private async processMessagesWithFiles(messages: LLMMessage[]): Promise<LLMMessage[]> {
-        const processedMessages: LLMMessage[] = [];
+    private async processMessagesWithFiles(messages: ConversationTurn[]): Promise<ConversationTurn[]> {
+        const processedMessages: ConversationTurn[] = [];
 
         for (const message of messages) {
-            if (message.files && message.files.length > 0) {
-                const processedFiles = await this.fileProcessor.processAllFiles(message.files);
+            if (message.userInput.files && message.userInput.files.length > 0) {
                 processedMessages.push({
                     ...message,
-                    files: processedFiles
+                    userInput: {
+                        ...message.userInput,
+                        files: await this.getFiles(message.userInput.files)
+                    }
                 });
             } else {
                 processedMessages.push(message);
@@ -78,7 +84,11 @@ abstract class BaseLLMProvider {
         return processedMessages;
     }
 
-    protected abstract createConfig(messages: LLMMessage[], systemPrompt: string, thinking: boolean, tools: Tool[]): ProviderConfig;
+    private async getFiles(files: LLMFile[]): Promise<any> {
+        return await this.fileProcessor.processAllFiles(files);
+    }
+
+    protected abstract createConfig(messages: ConversationTurn[], systemPrompt: string, thinking: boolean, tools: Tool[]): ProviderConfig;
     protected abstract createObjectParser(): (obj: any) => StreamParseResult;
     protected abstract getProviderName(): string;
 
@@ -120,16 +130,7 @@ abstract class BaseLLMProvider {
         app: App
     ): Promise<boolean> {
         const tempProvider = new this({} as NotesCriticSettings, app);
-        return await tempProvider.testApiKey(apiKey);
-    }
-    // Unified formatMessages implementation
-    protected formatMessages(messages: LLMMessage[]): any[] {
-        return messages
-            .filter(msg => msg.role !== 'system') // Skip system messages - they're handled separately now
-            .map(msg => ({
-                role: msg.role,
-                content: this.formatMessage(msg)
-            }));
+        return await tempProvider.testApiKey(apiKey, app);
     }
 
     // Abstract method for provider-specific message wrapping
@@ -137,18 +138,30 @@ abstract class BaseLLMProvider {
     protected abstract formatText(text: string, filename?: string): any;
     protected abstract formatImage(base64: string, mimeType: string): any;
 
+    // Unified formatMessages implementation
+    protected formatMessages(messages: ConversationTurn[]): any[] {
+        return messages.map(msg => this.formatMessage(msg)).flat();
+    }
     // Unified formatMessage implementation
-    protected formatMessage(message: LLMMessage): any {
+    protected formatMessage(message: ConversationTurn): any[] {
+        return [{
+            role: message.userInput.type,
+            content: this.formatMessageContent(message)
+        }]
+    }
+
+    // Abstract method for provider-specific content formatting
+    protected formatMessageContent(message: ConversationTurn): any {
         const content: any[] = [];
 
         // Add text content if present
-        if (message.content) {
-            content.push(this.formatText(message.content));
+        if (message.steps[message.steps.length - 1].content) {
+            content.push(this.formatText(message.userInput.prompt));
         }
 
         // Add files if present
-        if (message.files && message.files.length > 0) {
-            for (const file of message.files) {
+        if (message.userInput.files && message.userInput.files.length > 0) {
+            for (const file of message.userInput.files) {
                 if (file.type === 'text') {
                     content.push(this.formatText(file.content || '', file.name));
                 } else if (file.type === 'image') {
@@ -156,12 +169,8 @@ abstract class BaseLLMProvider {
                 }
             }
         }
-
-        return this.formatMessageContent(content);
+        return content;
     }
-
-    // Abstract method for provider-specific content formatting
-    protected abstract formatMessageContent(content: any[]): any;
 
     private async *streamResponse(config: ProviderConfig): AsyncGenerator<LLMStreamChunk, void, unknown> {
         try {
@@ -172,6 +181,11 @@ abstract class BaseLLMProvider {
                 body: config.body
             };
 
+            // Track tool calls in progress
+            const toolCalls = new Map<number, { id: string; name: string; input: any; partialJson: string }>();
+            let currentBlock = null
+            let currentBlockType = ''
+
             // Use generic streaming function and parse each JSON object
             for await (const jsonObj of streamFromEndpoint(httpConfig)) {
                 const result = config.parseObject(jsonObj);
@@ -179,6 +193,61 @@ abstract class BaseLLMProvider {
                 if (result.error) {
                     yield { type: 'error', content: result.error };
                     return;
+                }
+
+                if (result.blockStart) {
+                    currentBlock = result.blockStart;
+                    currentBlockType = result.blockStart.type;
+                }
+
+                if (result.signature) {
+                    yield { type: "signature", content: result.signature };
+                }
+
+                // Handle tool call streaming
+                if (result.toolCallStart) {
+                    const { index, id, name, input } = result.toolCallStart;
+                    toolCalls.set(index, { id, name, input, partialJson: '' });
+                }
+
+                if (result.toolCallDelta) {
+                    const { index, partial_json } = result.toolCallDelta;
+                    const toolCall = toolCalls.get(index);
+                    if (toolCall) {
+                        toolCall.partialJson += partial_json;
+                    }
+                }
+
+                if (result.blockComplete) {
+                    currentBlock = null;
+                    currentBlockType = '';
+                    const { index } = result.blockComplete;
+                    const toolCall = toolCalls.get(index);
+                    if (toolCall) {
+                        try {
+                            // Parse the accumulated JSON - use the input if partialJson is empty
+                            let parsedInput;
+                            if (toolCall.partialJson) {
+                                parsedInput = JSON.parse(toolCall.partialJson);
+                            } else {
+                                parsedInput = toolCall.input;
+                            }
+
+                            // Yield the tool call for execution by higher-level code
+                            yield {
+                                type: 'tool_call',
+                                content: '',
+                                toolCall: {
+                                    name: toolCall.name,
+                                    input: parsedInput,
+                                    id: toolCall.id
+                                }
+                            };
+                        } catch (error) {
+                            yield { type: 'error', content: `Failed to parse tool call: ${error.message}` };
+                        }
+                        toolCalls.delete(index);
+                    }
                 }
 
                 if (result.content) {
@@ -203,9 +272,10 @@ abstract class BaseLLMProvider {
 
     updateSettings(settings: NotesCriticSettings) {
         this.settings = settings;
+        this.mcpClient = new MCPClient(settings);
     }
 
-    protected async testApiKey(apiKey: string): Promise<boolean> {
+    protected async testApiKey(apiKey: string, app?: App): Promise<boolean> {
         if (!apiKey || apiKey.trim() === '') {
             return false;
         }
@@ -213,7 +283,20 @@ abstract class BaseLLMProvider {
         try {
             const { settings, bodyOverrides } = this.createTestConfig(apiKey);
             const tempSettings = { ...this.settings, ...settings };
-            const tempProvider = new (this.constructor as any)(tempSettings);
+
+            // Create a minimal app object if not provided for testing
+            const testApp = app || {
+                vault: {
+                    getAbstractFileByPath: () => null,
+                    read: () => Promise.resolve(''),
+                    create: () => Promise.resolve(null),
+                    modify: () => Promise.resolve(),
+                    readBinary: () => Promise.resolve(new ArrayBuffer(0)),
+                    getFiles: () => []
+                }
+            } as any;
+
+            const tempProvider = new (this.constructor as any)(tempSettings, testApp);
             const config = tempProvider.createConfig([{ role: 'user', content: 'Hi' }], '', false, []);
 
             // Merge body with overrides and remove any unwanted fields
@@ -243,25 +326,30 @@ abstract class BaseLLMProvider {
 
 // OpenAI provider implementation
 class OpenAIProvider extends BaseLLMProvider {
-    protected createConfig(messages: LLMMessage[], systemPrompt: string, thinking: boolean, tools: Tool[]): ProviderConfig {
+    protected createConfig(messages: ConversationTurn[], systemPrompt: string, thinking: boolean, tools: Tool[]): ProviderConfig {
         this.validateApiKey();
         const extras: any = {}
+
+        // Add text editor tool
+        extras.tools = [{
+            type: "text_editor_20250429",
+            name: "str_replace_based_edit_tool"
+        }];
+
         if (tools && tools.length > 0) {
-            extras.tools = [
-                {
-                    type: "mcp",
-                    server_label: this.mcpClient.getName(),
-                    server_url: this.mcpClient.getServerUrl(),
-                    headers: {
-                        Authorization: `Bearer ${this.mcpClient.getApiKey()}`
-                    },
-                    require_approval: {
-                        never: {
-                            tool_names: tools.map(tool => tool.name)
-                        }
+            extras.tools.push({
+                type: "mcp",
+                server_label: this.mcpClient.getName(),
+                server_url: this.mcpClient.getServerUrl(),
+                headers: {
+                    Authorization: `Bearer ${this.mcpClient.getApiKey()}`
+                },
+                require_approval: {
+                    never: {
+                        tool_names: tools.map(tool => tool.name)
                     }
                 }
-            ]
+            });
         }
 
         return {
@@ -300,18 +388,28 @@ class OpenAIProvider extends BaseLLMProvider {
         };
     }
 
-    protected formatMessageContent(content: any[]): any {
-        // If no content, add empty text
-        if (content.length === 0) {
-            content.push(this.formatText(''));
+    protected formatMessage(message: ConversationTurn): any[] {
+        const baseMsg = {
+            role: "user",
+            content: message.userInput.prompt
         }
-
-        // If only one text content, simplify to string format
-        if (content.length === 1 && content[0].type === 'text') {
-            return content[0].text;
-        }
-
-        return content;
+        const steps = message.steps.map(step => {
+            return Object.values(step.toolCalls).map(toolCall => ([
+                {
+                    type: "function_call",
+                    id: toolCall.id,
+                    call_id: toolCall.id,
+                    name: toolCall.name,
+                    arguments: toolCall.input
+                },
+                {
+                    type: "function_call_output",
+                    call_id: toolCall.id,
+                    output: toolCall.result
+                }
+            ]))
+        }).flat()
+        return [baseMsg, ...steps.flat()]
     }
 
     protected wrapMessages(messages: any[]): any[] {
@@ -366,7 +464,7 @@ class OpenAIProvider extends BaseLLMProvider {
 
 // Anthropic provider implementation
 class AnthropicProvider extends BaseLLMProvider {
-    protected createConfig(messages: LLMMessage[], systemPrompt: string, thinking: boolean, tools: Tool[]): ProviderConfig {
+    protected createConfig(messages: ConversationTurn[], systemPrompt: string, thinking: boolean, tools: Tool[]): ProviderConfig {
         this.validateApiKey();
         const formattedMessages = this.formatMessages(messages);
         const wrappedMessages = this.wrapMessages(formattedMessages);
@@ -375,6 +473,9 @@ class AnthropicProvider extends BaseLLMProvider {
             type: "web_search_20250305",
             name: "web_search",
             max_uses: 5
+        }, {
+            type: "text_editor_20250429",
+            name: "str_replace_based_edit_tool"
         }]
         const extras: any = {}
         if (tools && tools.length > 0) {
@@ -393,8 +494,8 @@ class AnthropicProvider extends BaseLLMProvider {
                 budget_tokens: this.settings.thinkingBudgetTokens
             }
         }
+        console.log("messages", wrappedMessages.messages)
 
-        console.log(wrappedMessages)
         return {
             url: 'https://api.anthropic.com/v1/messages',
             method: 'POST',
@@ -423,10 +524,77 @@ class AnthropicProvider extends BaseLLMProvider {
                 if (obj?.delta?.thinking) {
                     return { content: obj.delta.thinking, isThinking: true };
                 }
+                // Handle streaming tool input JSON
+                if (obj.delta?.type === 'input_json_delta') {
+                    return {
+                        toolCallDelta: {
+                            index: obj.index,
+                            partial_json: obj.delta.partial_json
+                        }
+                    };
+                }
+                if (obj.delta?.type === 'signature_delta') {
+                    return {
+                        signature: obj.delta.signature, isThinking: true
+                    }
+                }
                 const content = obj.delta?.text;
                 if (content) {
                     return { content, isThinking: false };
                 }
+            } else if (obj.type === 'content_block_start') {
+                if (obj.content_block?.type === 'mcp_tool_use') {
+                    return {
+                        toolCall: {
+                            name: obj.content_block.tool_name,
+                            input: obj.content_block.input,
+                            id: obj.content_block.id,
+                        },
+                        blockStart: {
+                            index: obj.index,
+                            type: obj.content_block.type
+                        }
+                    };
+                }
+                if (obj.content_block?.type === 'mcp_tool_result') {
+                    return {
+                        toolCall: {
+                            id: obj.content_block.id,
+                            content: obj.content_block.content,
+                        },
+                        blockStart: {
+                            index: obj.index,
+                            type: obj.content_block.type
+                        }
+                    };
+                }
+                // Handle text editor tool start
+                if (obj.content_block?.type === 'tool_use' && obj.content_block?.name === 'str_replace_based_edit_tool') {
+                    return {
+                        toolCallStart: {
+                            index: obj.index,
+                            id: obj.content_block.id,
+                            name: obj.content_block.name,
+                            input: obj.content_block.input
+                        },
+                        blockStart: {
+                            index: obj.index,
+                            type: obj.content_block.type
+                        }
+                    };
+                }
+                return {
+                    blockStart: {
+                        index: obj.index,
+                        type: obj.content_block.type
+                    }
+                }
+            } else if (obj.type === 'content_block_stop') {
+                return {
+                    blockComplete: {
+                        index: obj.index
+                    },
+                };
             } else if (obj.type === 'message_stop') {
                 return { isComplete: true };
             }
@@ -474,18 +642,57 @@ class AnthropicProvider extends BaseLLMProvider {
         };
     }
 
-    protected formatMessageContent(content: any[]): any {
-        // If no content, return simple text
-        if (content.length === 0) {
-            return '';
+    protected formatMessage(message: ConversationTurn): any[] {
+        const userMsg = {
+            role: "user",
+            content: [
+                {
+                    type: "text",
+                    text: message.userInput.prompt
+                },
+                ...message.userInput.files?.map(file => ({
+                    type: "file",
+                    file_id: file.path,
+                    file_name: file.name
+                })) || []
+            ]
         }
-
-        // If only one text content, return it directly
-        if (content.length === 1 && content[0].type === 'text') {
-            return content[0].text;
-        }
-
-        return content;
+        const steps = message.steps.filter(step => step.content || step.thinking).map(step => {
+            if (!step.toolCalls || Object.keys(step.toolCalls).length === 0) {
+                return [{
+                    role: "assistant",
+                    content: step.content
+                }]
+            }
+            const thinking = step.thinking && {
+                type: "thinking",
+                thinking: step.thinking,
+                signature: step.signature
+            }
+            return [
+                {
+                    role: "assistant",
+                    content: [
+                        thinking,
+                        ...Object.values(step.toolCalls).map(toolCall => ({
+                            type: "tool_use",
+                            id: toolCall.id,
+                            name: toolCall.name,
+                            input: toolCall.input
+                        }))
+                    ].filter(Boolean)
+                },
+                {
+                    role: "user",
+                    content: Object.values(step.toolCalls).map(toolCall => ({
+                        type: "tool_result",
+                        tool_use_id: toolCall.id,
+                        content: JSON.stringify(toolCall.result)
+                    }))
+                }
+            ]
+        })
+        return [userMsg, ...steps.flat()]
     }
 
     protected getTestBodyOverrides(): any {
@@ -500,9 +707,11 @@ class AnthropicProvider extends BaseLLMProvider {
 // Factory function and main export
 export class LLMProvider {
     private provider: BaseLLMProvider;
+    private app: App;
 
     constructor(settings: NotesCriticSettings, app: App) {
         this.provider = this.createProvider(settings, app);
+        this.app = app;
     }
 
     private createProvider(settings: NotesCriticSettings, app: App): BaseLLMProvider {
@@ -519,8 +728,30 @@ export class LLMProvider {
         }
     }
 
-    async *callLLM(messages: LLMMessage[], systemPrompt?: string): AsyncGenerator<LLMStreamChunk, void, unknown> {
-        yield* this.provider.callLLM(messages, systemPrompt);
+    async runToolCall({ toolCall }: LLMStreamChunk): Promise<any> {
+        switch (toolCall?.name) {
+            case 'str_replace_based_edit_tool':
+                const textEditorTool = new ObsidianTextEditorTool(this.app);
+                return textEditorTool.executeCommand(toolCall?.input as TextEditorCommand)
+            default:
+                throw new Error(`Unsupported tool call: ${toolCall?.name}`);
+        }
+    }
+
+    async *callLLM(messages: ConversationTurn[], systemPrompt?: string): AsyncGenerator<LLMStreamChunk, void, unknown> {
+        for await (const chunk of this.provider.callLLM(messages, systemPrompt)) {
+            yield chunk;
+            if (chunk.type === 'tool_call' && chunk.toolCall) {
+                yield {
+                    type: 'tool_call_result',
+                    content: '',
+                    toolCallResult: {
+                        id: chunk.toolCall.id,
+                        result: await this.runToolCall(chunk)
+                    }
+                };
+            }
+        }
     }
 
     updateSettings(settings: NotesCriticSettings, app: App) {
