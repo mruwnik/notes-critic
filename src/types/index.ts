@@ -49,9 +49,18 @@ export interface MCPServerConfig {
     env?: Record<string, string>;
 }
 
+export interface LLMFile {
+    type: 'text' | 'image';
+    path: string;
+    content?: string; // For text files or base64 encoded images
+    mimeType?: string; // For images
+    name?: string; // Display name
+}
+
 export interface LLMMessage {
     role: 'user' | 'assistant' | 'system';
-    content: string;
+    content?: string;
+    files?: LLMFile[];
 }
 
 export interface LLMResponse {

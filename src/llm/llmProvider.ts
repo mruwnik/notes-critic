@@ -1,7 +1,8 @@
-import { LLMMessage, LLMStreamChunk, NotesCriticSettings } from 'types';
-import { Notice, requestUrl } from 'obsidian';
+import { LLMMessage, LLMStreamChunk, NotesCriticSettings, LLMFile } from 'types';
+import { Notice, requestUrl, App } from 'obsidian';
 import { MCPClient, Tool } from 'llm/mcpClient';
 import { streamFromEndpoint, HttpConfig } from 'llm/streaming';
+import { ObsidianFileProcessor } from 'llm/fileUtils';
 
 interface StreamParseResult {
     content?: string;
@@ -21,16 +22,26 @@ interface ProviderConfig {
 abstract class BaseLLMProvider {
     protected settings: NotesCriticSettings;
     protected mcpClient: MCPClient;
+    protected fileProcessor: ObsidianFileProcessor;
 
-    constructor(settings: NotesCriticSettings) {
+    constructor(settings: NotesCriticSettings, app: App) {
         this.settings = settings;
         this.mcpClient = new MCPClient(settings);
+        this.fileProcessor = new ObsidianFileProcessor(app);
     }
 
-    async *callLLM(messages: LLMMessage[]): AsyncGenerator<LLMStreamChunk, void, unknown> {
+    async *callLLM(messages: LLMMessage[], systemPrompt?: string): AsyncGenerator<LLMStreamChunk, void, unknown> {
         try {
+            // Process files in messages
+            const processedMessages = await this.processMessagesWithFiles(messages);
+
             const tools = await this.mcpClient.getTools();
-            const config = this.createConfig(messages, this.settings.thinkingBudgetTokens > 0, tools);
+            const config = this.createConfig(
+                processedMessages,
+                systemPrompt || this.settings.systemPrompt,
+                this.settings.thinkingBudgetTokens > 0,
+                tools
+            );
 
             const response = this.streamResponse(config);
             let fullResponse = '';
@@ -49,12 +60,108 @@ abstract class BaseLLMProvider {
         }
     }
 
-    protected abstract createConfig(messages: LLMMessage[], thinking: boolean, tools: Tool[]): ProviderConfig;
+    private async processMessagesWithFiles(messages: LLMMessage[]): Promise<LLMMessage[]> {
+        const processedMessages: LLMMessage[] = [];
+
+        for (const message of messages) {
+            if (message.files && message.files.length > 0) {
+                const processedFiles = await this.fileProcessor.processAllFiles(message.files);
+                processedMessages.push({
+                    ...message,
+                    files: processedFiles
+                });
+            } else {
+                processedMessages.push(message);
+            }
+        }
+
+        return processedMessages;
+    }
+
+    protected abstract createConfig(messages: LLMMessage[], systemPrompt: string, thinking: boolean, tools: Tool[]): ProviderConfig;
     protected abstract createObjectParser(): (obj: any) => StreamParseResult;
-    protected abstract validateApiKey(): void;
+    protected abstract getProviderName(): string;
+
+    // Unified validateApiKey implementation
+    protected validateApiKey(): void {
+        if (!this.getApiKey()) {
+            throw new Error(`${this.getProviderName()} API key not configured`);
+        }
+    }
     protected abstract getApiKey(): string;
-    protected abstract getModel(): string;
-    protected abstract createTestConfig(apiKey: string): { settings: Partial<NotesCriticSettings>, bodyOverrides: any };
+    // Unified getModel implementation
+    protected getModel(): string {
+        const modelString = this.settings.model;
+        const [, model] = modelString.split('/');
+        return model;
+    }
+    // Unified createTestConfig implementation
+    protected createTestConfig(apiKey: string): { settings: Partial<NotesCriticSettings>, bodyOverrides: any } {
+        const settings: Partial<NotesCriticSettings> = {
+            model: `${this.getProviderName().toLowerCase()}/${this.getDefaultTestModel()}`,
+            maxTokens: 5
+        };
+        (settings as any)[this.getApiKeyField()] = apiKey;
+
+        return {
+            settings,
+            bodyOverrides: this.getTestBodyOverrides()
+        };
+    }
+
+    protected abstract getTestBodyOverrides(): any;
+    protected abstract getApiKeyField(): keyof NotesCriticSettings;
+    protected abstract getDefaultTestModel(): string;
+
+    // Unified static testApiKey method
+    static async testApiKey<T extends BaseLLMProvider>(
+        this: new (settings: NotesCriticSettings, app: App) => T,
+        apiKey: string,
+        app: App
+    ): Promise<boolean> {
+        const tempProvider = new this({} as NotesCriticSettings, app);
+        return await tempProvider.testApiKey(apiKey);
+    }
+    // Unified formatMessages implementation
+    protected formatMessages(messages: LLMMessage[]): any[] {
+        return messages
+            .filter(msg => msg.role !== 'system') // Skip system messages - they're handled separately now
+            .map(msg => ({
+                role: msg.role,
+                content: this.formatMessage(msg)
+            }));
+    }
+
+    // Abstract method for provider-specific message wrapping
+    protected abstract wrapMessages(messages: any[]): any;
+    protected abstract formatText(text: string, filename?: string): any;
+    protected abstract formatImage(base64: string, mimeType: string): any;
+
+    // Unified formatMessage implementation
+    protected formatMessage(message: LLMMessage): any {
+        const content: any[] = [];
+
+        // Add text content if present
+        if (message.content) {
+            content.push(this.formatText(message.content));
+        }
+
+        // Add files if present
+        if (message.files && message.files.length > 0) {
+            for (const file of message.files) {
+                if (file.type === 'text') {
+                    content.push(this.formatText(file.content || '', file.name));
+                } else if (file.type === 'image') {
+                    content.push(this.formatImage(file.content || '', file.mimeType || 'image/png'));
+                }
+            }
+        }
+
+        return this.formatMessageContent(content);
+    }
+
+    // Abstract method for provider-specific content formatting
+    protected abstract formatMessageContent(content: any[]): any;
 
     private async *streamResponse(config: ProviderConfig): AsyncGenerator<LLMStreamChunk, void, unknown> {
         try {
@@ -107,7 +214,7 @@ abstract class BaseLLMProvider {
             const { settings, bodyOverrides } = this.createTestConfig(apiKey);
             const tempSettings = { ...this.settings, ...settings };
             const tempProvider = new (this.constructor as any)(tempSettings);
-            const config = tempProvider.createConfig([{ role: 'user', content: 'Hi' }], false);
+            const config = tempProvider.createConfig([{ role: 'user', content: 'Hi' }], '', false, []);
 
             // Merge body with overrides and remove any unwanted fields
             const testBody = { ...config.body, ...bodyOverrides };
@@ -136,7 +243,7 @@ abstract class BaseLLMProvider {
 
 // OpenAI provider implementation
 class OpenAIProvider extends BaseLLMProvider {
-    protected createConfig(messages: LLMMessage[], thinking: boolean, tools: Tool[]): ProviderConfig {
+    protected createConfig(messages: LLMMessage[], systemPrompt: string, thinking: boolean, tools: Tool[]): ProviderConfig {
         this.validateApiKey();
         const extras: any = {}
         if (tools && tools.length > 0) {
@@ -166,11 +273,8 @@ class OpenAIProvider extends BaseLLMProvider {
             },
             body: {
                 model: this.getModel(),
-                input: messages.map(msg => ({
-                    role: msg.role,
-                    content: msg.content
-                })),
-                instructions: this.settings.systemPrompt,
+                input: this.wrapMessages(this.formatMessages(messages)),
+                instructions: systemPrompt,
                 stream: true,
                 temperature: 0.7,
                 max_output_tokens: 2000,
@@ -178,6 +282,40 @@ class OpenAIProvider extends BaseLLMProvider {
             },
             parseObject: this.createObjectParser()
         };
+    }
+
+    protected formatText(text: string, filename?: string): any {
+        return {
+            type: 'text',
+            text: filename ? `File: ${filename}\n\n${text}` : text
+        };
+    }
+
+    protected formatImage(base64: string, mimeType: string): any {
+        return {
+            type: 'image_url',
+            image_url: {
+                url: `data:${mimeType};base64,${base64}`
+            }
+        };
+    }
+
+    protected formatMessageContent(content: any[]): any {
+        // If no content, add empty text
+        if (content.length === 0) {
+            content.push(this.formatText(''));
+        }
+
+        // If only one text content, simplify to string format
+        if (content.length === 1 && content[0].type === 'text') {
+            return content[0].text;
+        }
+
+        return content;
+    }
+
+    protected wrapMessages(messages: any[]): any[] {
+        return messages;
     }
 
     protected createObjectParser(): (obj: any) => StreamParseResult {
@@ -199,48 +337,39 @@ class OpenAIProvider extends BaseLLMProvider {
         };
     }
 
-    protected validateApiKey(): void {
-        if (!this.getApiKey()) {
-            throw new Error('OpenAI API key not configured');
-        }
+    protected getProviderName(): string {
+        return 'OpenAI';
     }
 
     protected getApiKey(): string {
         return this.settings.openaiApiKey;
     }
 
-    protected getModel(): string {
-        const modelString = this.settings.model;
-        const [, model] = modelString.split('/');
-        return model;
+    protected getApiKeyField(): keyof NotesCriticSettings {
+        return 'openaiApiKey';
     }
 
-    protected createTestConfig(apiKey: string): { settings: Partial<NotesCriticSettings>, bodyOverrides: any } {
+    protected getDefaultTestModel(): string {
+        return 'gpt-3.5-turbo';
+    }
+
+    protected getTestBodyOverrides(): any {
         return {
-            settings: {
-                openaiApiKey: apiKey,
-                model: 'openai/gpt-3.5-turbo',
-                maxTokens: 5
-            },
-            bodyOverrides: {
-                stream: false,
-                max_output_tokens: 20,
-                model: 'gpt-3.5-turbo'
-            }
+            stream: false,
+            max_output_tokens: 20,
+            model: this.getDefaultTestModel()
         };
     }
 
-    static async testApiKey(apiKey: string): Promise<boolean> {
-        const tempProvider = new OpenAIProvider({} as NotesCriticSettings);
-        return await tempProvider.testApiKey(apiKey);
-    }
+
 }
 
 // Anthropic provider implementation
 class AnthropicProvider extends BaseLLMProvider {
-    protected createConfig(messages: LLMMessage[], thinking: boolean, tools: Tool[]): ProviderConfig {
+    protected createConfig(messages: LLMMessage[], systemPrompt: string, thinking: boolean, tools: Tool[]): ProviderConfig {
         this.validateApiKey();
-        const anthropicMessages = this.convertToAnthropicFormat(messages);
+        const formattedMessages = this.formatMessages(messages);
+        const wrappedMessages = this.wrapMessages(formattedMessages);
 
         const defaultTools = [{
             type: "web_search_20250305",
@@ -277,8 +406,8 @@ class AnthropicProvider extends BaseLLMProvider {
             body: {
                 model: this.getModel(),
                 max_tokens: this.settings.maxTokens,
-                messages: anthropicMessages.messages,
-                system: anthropicMessages.system,
+                messages: wrappedMessages.messages,
+                system: systemPrompt,
                 ...extras,
                 tools: defaultTools,
                 stream: true,
@@ -304,100 +433,107 @@ class AnthropicProvider extends BaseLLMProvider {
         };
     }
 
-    protected validateApiKey(): void {
-        if (!this.getApiKey()) {
-            throw new Error('Anthropic API key not configured');
-        }
+    protected getProviderName(): string {
+        return 'Anthropic';
     }
 
     protected getApiKey(): string {
         return this.settings.anthropicApiKey;
     }
 
-    protected getModel(): string {
-        const modelString = this.settings.model;
-        const [, model] = modelString.split('/');
-        return model;
+    protected getApiKeyField(): keyof NotesCriticSettings {
+        return 'anthropicApiKey';
     }
 
-    private convertToAnthropicFormat(messages: LLMMessage[]): { messages: any[], system?: string } {
-        const anthropicMessages: any[] = [];
-        let systemMessage = '';
+    protected getDefaultTestModel(): string {
+        return 'claude-3-5-haiku-latest';
+    }
 
-        for (const message of messages) {
-            if (message.role === 'system') {
-                systemMessage = message.content;
-            } else {
-                anthropicMessages.push({
-                    role: message.role,
-                    content: message.content
-                });
+    protected wrapMessages(messages: any[]): { messages: any[] } {
+        return {
+            messages: messages
+        };
+    }
+
+    protected formatText(text: string, filename?: string): any {
+        return {
+            type: 'text',
+            text: filename ? `File: ${filename}\n\n${text}` : text
+        };
+    }
+
+    protected formatImage(base64: string, mimeType: string): any {
+        return {
+            type: 'image',
+            source: {
+                type: 'base64',
+                media_type: mimeType,
+                data: base64
             }
+        };
+    }
+
+    protected formatMessageContent(content: any[]): any {
+        // If no content, return simple text
+        if (content.length === 0) {
+            return '';
         }
 
+        // If only one text content, return it directly
+        if (content.length === 1 && content[0].type === 'text') {
+            return content[0].text;
+        }
+
+        return content;
+    }
+
+    protected getTestBodyOverrides(): any {
         return {
-            messages: anthropicMessages,
-            system: systemMessage || undefined
+            stream: false,
+            max_tokens: 5,
+            model: this.getDefaultTestModel()
         };
     }
 
-    protected createTestConfig(apiKey: string): { settings: Partial<NotesCriticSettings>, bodyOverrides: any } {
-        return {
-            settings: {
-                anthropicApiKey: apiKey,
-                model: 'anthropic/claude-3-haiku-20240307',
-                maxTokens: 5,
-            },
-            bodyOverrides: {
-                stream: false,
-                max_tokens: 5,
-                model: 'claude-3-haiku-20240307'
-            }
-        };
-    }
 
-    static async testApiKey(apiKey: string): Promise<boolean> {
-        const tempProvider = new AnthropicProvider({} as NotesCriticSettings);
-        return await tempProvider.testApiKey(apiKey);
-    }
 }
 
 // Factory function and main export
 export class LLMProvider {
     private provider: BaseLLMProvider;
 
-    constructor(settings: NotesCriticSettings) {
-        this.provider = this.createProvider(settings);
+    constructor(settings: NotesCriticSettings, app: App) {
+        this.provider = this.createProvider(settings, app);
     }
 
-    private createProvider(settings: NotesCriticSettings): BaseLLMProvider {
+    private createProvider(settings: NotesCriticSettings, app: App): BaseLLMProvider {
         const modelString = settings.model;
         const [provider] = modelString.split('/');
 
         switch (provider) {
             case 'openai':
-                return new OpenAIProvider(settings);
+                return new OpenAIProvider(settings, app);
             case 'anthropic':
-                return new AnthropicProvider(settings);
+                return new AnthropicProvider(settings, app);
             default:
                 throw new Error(`Unsupported LLM provider: ${provider}`);
         }
     }
 
-    async *callLLM(messages: LLMMessage[]): AsyncGenerator<LLMStreamChunk, void, unknown> {
-        yield* this.provider.callLLM(messages);
+    async *callLLM(messages: LLMMessage[], systemPrompt?: string): AsyncGenerator<LLMStreamChunk, void, unknown> {
+        yield* this.provider.callLLM(messages, systemPrompt);
     }
 
-    updateSettings(settings: NotesCriticSettings) {
-        this.provider = this.createProvider(settings);
+    updateSettings(settings: NotesCriticSettings, app: App) {
+        this.provider = this.createProvider(settings, app);
     }
 
-    static async testApiKey(apiKey: string, provider: 'anthropic' | 'openai'): Promise<boolean> {
+    static async testApiKey(apiKey: string, provider: 'anthropic' | 'openai', app: App): Promise<boolean> {
         switch (provider) {
             case 'openai':
-                return OpenAIProvider.testApiKey(apiKey);
+                return OpenAIProvider.testApiKey(apiKey, app);
             case 'anthropic':
-                return AnthropicProvider.testApiKey(apiKey);
+                return AnthropicProvider.testApiKey(apiKey, app);
             default:
                 return false;
         }
@@ -407,13 +543,15 @@ export class LLMProvider {
 export async function createChatCompletion(
     messages: LLMMessage[],
     settings: NotesCriticSettings,
-    onChunk: (chunk: LLMStreamChunk) => void
+    app: App,
+    onChunk: (chunk: LLMStreamChunk) => void,
+    systemPrompt?: string
 ): Promise<string> {
-    const provider = new LLMProvider(settings);
+    const provider = new LLMProvider(settings, app);
     let fullResponse = '';
 
     try {
-        for await (const chunk of provider.callLLM(messages)) {
+        for await (const chunk of provider.callLLM(messages, systemPrompt)) {
             onChunk(chunk);
 
             if (chunk.type === 'content') {
