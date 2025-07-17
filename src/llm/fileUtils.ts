@@ -17,7 +17,8 @@ export class ObsidianFileProcessor {
                 try {
                     const tFile = this.app.vault.getAbstractFileByPath(file.path);
                     if (tFile instanceof TFile) {
-                        processedFile.content = await this.app.vault.read(tFile);
+                        const content = await this.app.vault.read(tFile);
+                        processedFile.content = Buffer.from(content);
                     } else {
                         throw new Error(`Note not found: ${file.path}`);
                     }
@@ -33,7 +34,7 @@ export class ObsidianFileProcessor {
                     if (tFile instanceof TFile) {
                         const arrayBuffer = await this.app.vault.readBinary(tFile);
                         const buffer = Buffer.from(arrayBuffer);
-                        processedFile.content = buffer.toString('base64');
+                        processedFile.content = buffer;
                     } else {
                         throw new Error(`Image not found: ${file.path}`);
                     }
@@ -77,16 +78,3 @@ export class ObsidianFileProcessor {
         return Promise.all(files.map(file => this.processLLMFile(file)));
     }
 }
-
-// Helper function to create file references from Obsidian files
-export function createLLMFileFromTFile(tFile: TFile): LLMFile {
-    const isImage = ['png', 'jpg', 'jpeg', 'gif', 'webp'].includes(
-        tFile.extension.toLowerCase()
-    );
-
-    return {
-        type: isImage ? 'image' : 'text',
-        path: tFile.path,
-        name: tFile.name
-    };
-} 

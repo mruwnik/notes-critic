@@ -1,76 +1,17 @@
-import { ConversationTurn, UserInput, LLMMessage, LLMStreamChunk, NotesCriticSettings, TurnStep } from 'types';
+import { ConversationTurn, LLMStreamChunk, NotesCriticSettings } from 'types';
 import { LLMProvider } from 'llm/llmProvider';
 import { App } from 'obsidian';
 
 
-const extractMessages = (turn: ConversationTurn): LLMMessage[] => {
-    return turn.steps.filter(s => s.content !== undefined).map(s => ([
-        { role: 'user', content: getUserInputMessage(s), toolCalls: s.toolCalls } as LLMMessage,
-        { role: 'assistant', content: s.content, toolCalls: s.toolCalls } as LLMMessage
-    ])).flat();
-}
-
-
 export async function* getFeedback(
-    turn: TurnStep,
     history: ConversationTurn[],
     settings: NotesCriticSettings,
     app: App
 ): AsyncGenerator<LLMStreamChunk, void, unknown> {
     const provider = new LLMProvider(settings, app);
-
-    // // Construct history messages from recent turns
-    // const historyMessages: LLMMessage[] = [];
-    // const recentHistory = history.slice(-10); // Last 10 turns
-
-    // for (const turn of recentHistory) {
-    //     historyMessages.push(...extractMessages(turn));
-    // }
-
-    // // Construct the messages array
-    // const messages: LLMMessage[] = [
-    //     ...historyMessages,
-    //     {
-    //         role: 'user',
-    //         content: turn.userInput.prompt,
-    //         files: turn.userInput.files,
-    //         toolCalls: turn.toolCalls
-    //     }
-    // ];
-
-    // console.log("caldling with messages", messages);
-    // // Stream the response
     yield* provider.callLLM(history);
 }
 
-function getUserInputMessage(turn: TurnStep): string {
-    let message = '';
-
-    switch (turn.userInput.type) {
-        case 'chat_message':
-            message = turn.userInput.message;
-            break;
-        case 'file_change':
-            message = `Changes made to "${turn.userInput.filename}":\n${turn.userInput.diff}`;
-            break;
-        case 'manual_feedback':
-            message = `Please provide feedback on "${turn.userInput.filename}".`;
-            break;
-        case 'tool_call':
-            message = turn.userInput.prompt;
-            break;
-        default:
-            message = '';
-    }
-
-    // Add note about attached files if they exist
-    if (turn.userInput.files && turn.userInput.files.length > 0) {
-        const fileNames = turn.userInput.files.map(f => f.name || f.path).join(', ');
-        message += `\n\nAttached files: ${fileNames}`;
-    }
-
-    return message;
-}
 
 export function generateDiff(baseline: string, current: string): string {
     if (baseline === current) {

@@ -101,8 +101,6 @@ export class ChatView extends ItemView {
     }
 
     private updateUI() {
-        // Update control panel state based on current file
-        this.controlPanel.updateFeedbackButton(this.fileManager.hasChangesToFeedback(this.currentFile));
     }
 
     private async onFileModified(file: TFile) {
@@ -198,16 +196,14 @@ export class ChatView extends ItemView {
         };
 
         this.conversation.push(turn);
-        console.log("conversation", this.conversation);
         await this.streamTurnResponse(turn);
     }
 
-    private async streamResponse(step: TurnStep): Promise<TurnStep> {
+    private async streamResponse(step: TurnStep, turn: ConversationTurn, aiResponseEl: HTMLElement): Promise<TurnStep> {
         let streamedThinking = '';
         let streamedContent = '';
 
         for await (const chunk of getFeedback(
-            step,
             this.conversation, // All previous turns
             this.plugin.settings,
             this.app
@@ -235,23 +231,34 @@ export class ChatView extends ItemView {
             } else if (chunk.type === 'error') {
                 throw new Error(chunk.content);
             }
+
+            // Update display during streaming
+            this.feedbackDisplay.updateConversationTurn(aiResponseEl, turn, true);
         }
         return step;
     }
 
-    private async streamTurnResponse(turn: ConversationTurn, stepsLeft: number = 10) {
-        const aiResponseEl = this.feedbackDisplay.createConversationTurn(turn);
+    private async streamTurnResponse(turn: ConversationTurn, stepsLeft: number = 10, aiResponseEl?: HTMLElement) {
+        // Create the response element only on first call
+        if (!aiResponseEl) {
+            aiResponseEl = this.feedbackDisplay.createConversationTurn(turn);
+        }
+
         try {
-            const updatedTurn = await this.streamResponse(turn.steps[turn.steps.length - 1]);
-            if (Object.keys(updatedTurn.toolCalls).length > 0 && stepsLeft > 0) {
+            const updatedStep = await this.streamResponse(turn.steps[turn.steps.length - 1], turn, aiResponseEl);
+            if (Object.keys(updatedStep.toolCalls).length > 0 && stepsLeft > 0) {
                 const newStep = this.newStep({});
                 turn.steps.push(newStep);
-                await this.streamTurnResponse(turn, stepsLeft - 1);
+                await this.streamTurnResponse(turn, stepsLeft - 1, aiResponseEl);
+            } else {
+                turn.isComplete = true;
             }
+            // Final update to ensure streaming indicators are removed
             this.feedbackDisplay.updateConversationTurn(aiResponseEl, turn, false);
         } catch (error) {
             turn.error = error.message;
             turn.isComplete = true;
+            this.feedbackDisplay.updateConversationTurn(aiResponseEl, turn, false);
         }
     }
 

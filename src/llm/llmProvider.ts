@@ -3,7 +3,7 @@ import { Notice, requestUrl, App } from 'obsidian';
 import { MCPClient, Tool } from 'llm/mcpClient';
 import { streamFromEndpoint, HttpConfig } from 'llm/streaming';
 import { ObsidianFileProcessor } from 'llm/fileUtils';
-import { ObsidianTextEditorTool, TextEditorCommand } from 'llm/tools';
+import { ObsidianTextEditorTool, TextEditorCommand, textEditorToolDefinition } from 'llm/tools';
 
 interface StreamParseResult {
     content?: string;
@@ -50,6 +50,7 @@ abstract class BaseLLMProvider {
                 tools
             );
 
+            console.log("config", config)
             const response = this.streamResponse(config);
             let fullResponse = '';
 
@@ -137,6 +138,7 @@ abstract class BaseLLMProvider {
     protected abstract wrapMessages(messages: any[]): any;
     protected abstract formatText(text: string, filename?: string): any;
     protected abstract formatImage(base64: string, mimeType: string): any;
+    protected abstract formatFile(file: LLMFile): any;
 
     // Unified formatMessages implementation
     protected formatMessages(messages: ConversationTurn[]): any[] {
@@ -331,11 +333,7 @@ class OpenAIProvider extends BaseLLMProvider {
         const extras: any = {}
 
         // Add text editor tool
-        extras.tools = [{
-            type: "text_editor_20250429",
-            name: "str_replace_based_edit_tool"
-        }];
-
+        extras.tools = [{ ...textEditorToolDefinition, type: 'function' }];
         if (tools && tools.length > 0) {
             extras.tools.push({
                 type: "mcp",
@@ -374,7 +372,7 @@ class OpenAIProvider extends BaseLLMProvider {
 
     protected formatText(text: string, filename?: string): any {
         return {
-            type: 'text',
+            type: 'input_text',
             text: filename ? `File: ${filename}\n\n${text}` : text
         };
     }
@@ -388,10 +386,29 @@ class OpenAIProvider extends BaseLLMProvider {
         };
     }
 
+    protected formatFile(file: LLMFile): any {
+        switch (file.type) {
+            case 'text':
+                return this.formatText(file.content.toString(), file.name);
+            case 'image':
+                return this.formatImage(file.content.toString('base64'), file.mimeType || 'image/png');
+            case 'pdf':
+                return {
+                    type: 'input_file',
+                    filename: file.name,
+                    file_data: file.content.toString('base64')
+                }
+        }
+        return null;
+    }
+
     protected formatMessage(message: ConversationTurn): any[] {
         const baseMsg = {
             role: "user",
-            content: message.userInput.prompt
+            content: [
+                this.formatText(message.userInput.prompt),
+                ...message.userInput.files?.map(this.formatFile.bind(this)) || []
+            ]
         }
         const steps = message.steps.map(step => {
             return Object.values(step.toolCalls).map(toolCall => ([
@@ -494,7 +511,6 @@ class AnthropicProvider extends BaseLLMProvider {
                 budget_tokens: this.settings.thinkingBudgetTokens
             }
         }
-        console.log("messages", wrappedMessages.messages)
 
         return {
             url: 'https://api.anthropic.com/v1/messages',
@@ -642,6 +658,40 @@ class AnthropicProvider extends BaseLLMProvider {
         };
     }
 
+    protected formatFile(file: LLMFile): any {
+        switch (file.type) {
+            case 'text':
+                return {
+                    type: 'document',
+                    source: {
+                        type: 'text',
+                        data: file.content.toString(),
+                        media_type: file.mimeType || 'text/plain'
+                    }
+                };
+            case 'image':
+                return {
+                    type: 'document',
+                    source: {
+                        type: 'base64',
+                        media_type: file.mimeType || 'image/png',
+                        data: file.content.toString('base64')
+                    }
+                };
+            case 'pdf':
+                return {
+                    type: 'document',
+                    source: {
+                        type: 'base64',
+                        media_type: file.mimeType || 'application/pdf',
+                        data: file.content.toString('base64')
+                    }
+                };
+            default:
+                throw new Error(`Unsupported file type: ${file.type}`);
+        }
+    }
+
     protected formatMessage(message: ConversationTurn): any[] {
         const userMsg = {
             role: "user",
@@ -650,11 +700,7 @@ class AnthropicProvider extends BaseLLMProvider {
                     type: "text",
                     text: message.userInput.prompt
                 },
-                ...message.userInput.files?.map(file => ({
-                    type: "file",
-                    file_id: file.path,
-                    file_name: file.name
-                })) || []
+                ...message.userInput.files?.map(this.formatFile) || []
             ]
         }
         const steps = message.steps.filter(step => step.content || step.thinking).map(step => {

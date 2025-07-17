@@ -229,7 +229,6 @@ export class NotesCriticSettingsTab extends PluginSettingTab {
                             const mcpClient = new MCPClient(this.plugin.settings);
                             const tools = await mcpClient.getTools(true);
                             const isValid = tools.length > 0;
-                            console.log('MCP server tools:', tools);
 
                             if (isValid) {
                                 button.setButtonText('✓ Connected');

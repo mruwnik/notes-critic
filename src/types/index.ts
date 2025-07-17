@@ -60,11 +60,11 @@ export interface MCPServerConfig {
 }
 
 export interface LLMFile {
-    type: 'text' | 'image';
+    type: 'text' | 'image' | 'pdf';
     path: string;
-    content?: string; // For text files or base64 encoded images
-    mimeType?: string; // For images
-    name?: string; // Display name
+    content?: Buffer;
+    mimeType?: string;
+    name?: string;
 }
 
 export interface LLMMessage {

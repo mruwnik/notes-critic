@@ -44,10 +44,6 @@ export class ControlPanel {
         return button;
     }
 
-    updateFeedbackButton(enabled: boolean): void {
-        this.feedbackButton.toggleAttribute('disabled', !enabled);
-    }
-
     destroy(): void {
         this.container.remove();
     }

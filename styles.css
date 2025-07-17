@@ -105,6 +105,7 @@ If your plugin does not need CSS, delete this file.
     line-height: 1.5;
     font-size: 0.95em;
     color: var(--text-normal);
+    padding: 1rem 0;
 }
 
 .notes-critic-rerun-button {
@@ -128,31 +129,124 @@ If your plugin does not need CSS, delete this file.
     color: var(--text-normal);
 }
 
-.notes-critic-thinking-section {
-    margin-bottom: 1rem;
+/* Generic details section styles */
+.notes-critic-details-section {
+    margin-bottom: 0.5rem;
     background: var(--background-primary-alt);
     border-radius: 4px;
+    font-size: small;
 }
 
-.notes-critic-thinking-section summary {
+.notes-critic-details-section summary {
     cursor: pointer;
     font-weight: 500;
     color: var(--text-muted);
-    padding: 0.5rem;
     border-radius: 4px;
-    margin-bottom: 0.5rem;
 }
 
-.notes-critic-thinking-section summary:hover {
+.notes-critic-details-section summary:hover {
     background: var(--background-modifier-hover);
 }
 
+/* Thinking content styles */
 .notes-critic-thinking-content {
     background: var(--background-primary-alt);
     padding: 0.75rem;
     border-radius: 4px;
     font-size: 0.9em;
     line-height: 1.4;
+    color: var(--text-muted);
+    font-style: italic;
+}
+
+/* Step container styles */
+.notes-critic-step-container {
+    margin-bottom: 0.125rem;
+}
+
+.notes-critic-step-container:last-child {
+    margin-bottom: 0;
+}
+
+.notes-critic-tool-call-content {
+    background: var(--background-primary-alt);
+    padding: 0.75rem;
+    border-radius: 4px;
+    font-size: 0.9em;
+    line-height: 1.4;
+    color: var(--text-muted);
+}
+
+.notes-critic-tool-call-content code {
+    background: var(--background-primary);
+    padding: 0.5rem;
+    border-radius: 3px;
+    font-family: var(--font-monospace);
+    font-size: 0.8em;
+    white-space: pre-wrap;
+    word-break: break-all;
+    display: block;
+    margin-top: 0.25rem;
+    border: 1px solid var(--background-modifier-border);
+}
+
+.notes-critic-tool-call-content>div {
+    margin-bottom: 0.75rem;
+}
+
+.notes-critic-tool-call-content>div:last-child {
+    margin-bottom: 0;
+}
+
+.notes-critic-tool-call-content strong {
+    color: var(--text-normal);
+}
+
+/* Diff formatting styles */
+.diff-container {
+    font-family: var(--font-monospace);
+    font-size: 0.85em;
+    line-height: 1.3;
+    background: var(--background-primary-alt);
+    border: 1px solid var(--background-modifier-border);
+    border-radius: 4px;
+    padding: 0.5rem;
+    margin: 0.5rem 0;
+    overflow-x: auto;
+}
+
+.diff-header {
+    color: var(--text-muted);
+    font-weight: 500;
+}
+
+.diff-hunk {
+    color: var(--text-accent);
+    font-weight: 500;
+    background: var(--background-modifier-hover);
+    padding: 0 0.25rem;
+    border-radius: 2px;
+}
+
+.diff-added {
+    color: var(--text-success);
+    background: rgba(46, 160, 67, 0.1);
+    padding: 0 0.25rem;
+    border-radius: 2px;
+}
+
+.diff-removed {
+    color: var(--text-error);
+    background: rgba(248, 81, 73, 0.1);
+    padding: 0 0.25rem;
+    border-radius: 2px;
+}
+
+.diff-context {
+    color: var(--text-normal);
+}
+
+.diff-meta {
     color: var(--text-muted);
     font-style: italic;
 }

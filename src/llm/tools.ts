@@ -356,7 +356,7 @@ export class ObsidianTextEditorTool {
 export const textEditorToolDefinition = {
     name: 'str_replace_based_edit_tool',
     description: 'A text editor tool that can view, create, and edit files.',
-    input_schema: {
+    parameters: {
         type: 'object',
         properties: {
             command: {
