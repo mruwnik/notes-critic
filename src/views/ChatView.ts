@@ -1,16 +1,17 @@
 import { ItemView, WorkspaceLeaf, TFile, Notice, Plugin } from 'obsidian';
 import { CHAT_VIEW_CONFIG, NoteSnapshot, ConversationTurn, UserInput, NotesCriticSettings, LLMFile, TurnStep, ToolCall } from 'types';
-import { getFeedback, generateDiff } from 'feedback/feedbackProvider';
-import { FeedbackDisplay } from './components/FeedbackDisplay';
-import { ChatInput } from './components/ChatInput';
-import { ControlPanel } from './components/ControlPanel';
-import { FileManager } from './components/FileManager';
+import { generateDiff } from 'feedback/feedbackProvider';
+import { FeedbackDisplay } from 'views/components/FeedbackDisplay';
+import { ChatInput } from 'views/components/ChatInput';
+import { ControlPanel } from 'views/components/ControlPanel';
+import { FileManager } from 'views/components/FileManager';
+import { ConversationManager, ConversationChunk } from 'conversation/ConversationManager';
 
 export class ChatView extends ItemView {
     private currentFile: TFile | null = null;
     private plugin: Plugin & { settings: NotesCriticSettings; saveSettings(): Promise<void> };
     private noteSnapshots: Map<string, NoteSnapshot> = new Map();
-    private conversation: ConversationTurn[] = [];
+    private conversationManager: ConversationManager;
     private lastFeedbackTimes: Map<string, Date> = new Map();
 
     // Components
@@ -22,6 +23,7 @@ export class ChatView extends ItemView {
     constructor(leaf: WorkspaceLeaf, plugin: Plugin & { settings: NotesCriticSettings; saveSettings(): Promise<void> }) {
         super(leaf);
         this.plugin = plugin;
+        this.conversationManager = new ConversationManager(plugin.settings, this.app);
         this.fileManager = new FileManager(this.app, this.noteSnapshots, this.onFileChange.bind(this));
     }
 
@@ -57,10 +59,16 @@ export class ChatView extends ItemView {
         this.controlPanel = new ControlPanel(
             headerContainer,
             () => this.triggerFeedback(),
-            () => this.clearCurrentNote()
+            () => this.clearCurrentNote(),
         );
-        this.feedbackDisplay = new FeedbackDisplay(container, this.rerunConversationTurn.bind(this));
-        this.chatInput = new ChatInput(container, this.sendChatMessage.bind(this));
+        this.feedbackDisplay = new FeedbackDisplay(
+            container,
+            this.rerunConversationTurn.bind(this),
+            this.editConversationTurn.bind(this)
+        );
+        this.chatInput = new ChatInput(container, {
+            onSend: this.sendChatMessage.bind(this)
+        });
     }
 
     private initializeView() {
@@ -101,6 +109,7 @@ export class ChatView extends ItemView {
     }
 
     private updateUI() {
+        this.feedbackDisplay.redisplayConversation(this.conversationManager.getConversation());
     }
 
     private async onFileModified(file: TFile) {
@@ -130,13 +139,30 @@ export class ChatView extends ItemView {
     private async sendChatMessage(message: string) {
         if (!message) return;
 
-        const userInput: UserInput = {
-            type: 'chat_message',
-            message,
-            prompt: message
-        };
+        try {
+            // If inference is already running, cancel it first
+            if (this.conversationManager.isInferenceRunning()) {
+                this.conversationManager.cancelInference();
+            }
+            this.updateUI();
 
-        await this.createConversationTurn(userInput);
+            await this.conversationManager.newConversationRound(
+                message,
+                undefined,
+                this.handleConversationChunk.bind(this)
+            );
+        } catch (error) {
+            new Notice(`Error sending message: ${error.message}`);
+        }
+    }
+
+    private handleConversationChunk(chunk: ConversationChunk) {
+        const conversation = this.conversationManager.getConversation();
+        const currentTurn = conversation[conversation.length - 1];
+
+        if (!currentTurn) return;
+
+        this.feedbackDisplay.handleConversationChunk(chunk, currentTurn);
     }
 
     public async triggerFeedback() {
@@ -154,144 +180,79 @@ export class ChatView extends ItemView {
         }
 
         const diff = generateDiff(snapshot.baseline, snapshot.current);
-        const userInput: UserInput = {
-            type: 'file_change',
-            filename: this.currentFile.basename,
-            diff,
-            prompt: this.plugin.settings.feedbackPrompt.replace(/\${noteName}/g, this.currentFile.basename).replace(/\${diff}/g, diff),
-            files: [{
-                type: 'text',
-                path: this.currentFile.path,
-                name: this.currentFile.basename
-            }]
-        };
+        const prompt = this.plugin.settings.feedbackPrompt
+            .replace(/\${noteName}/g, this.currentFile.basename)
+            .replace(/\${diff}/g, diff);
 
-        await this.createConversationTurn(userInput);
-
-        // Update snapshot baseline
-        this.fileManager.updateFeedbackBaseline(this.currentFile!);
-
-        // Update last feedback time for this file
-        this.lastFeedbackTimes.set(this.currentFile.path, new Date());
-
-        this.updateUI();
-    }
-
-    private newStep({ thinking, content, toolCalls }: { thinking?: string, content?: string, toolCalls?: Record<string, ToolCall> }): TurnStep {
-        return {
-            thinking: thinking || '',
-            content: content || undefined,
-            toolCalls: toolCalls || {},
-        }
-    }
-
-    private async createConversationTurn(userInput: UserInput) {
-        const turn: ConversationTurn = {
-            id: Date.now().toString(),
-            timestamp: new Date(),
-            userInput,
-            steps: [this.newStep({})],
-            isComplete: false,
-            error: undefined
-        };
-
-        this.conversation.push(turn);
-        await this.streamTurnResponse(turn);
-    }
-
-    private async streamResponse(step: TurnStep, turn: ConversationTurn, aiResponseEl: HTMLElement): Promise<TurnStep> {
-        let streamedThinking = '';
-        let streamedContent = '';
-
-        for await (const chunk of getFeedback(
-            this.conversation, // All previous turns
-            this.plugin.settings,
-            this.app
-        )) {
-            if (chunk.type === 'thinking') {
-                streamedThinking += chunk.content;
-                step.thinking = streamedThinking;
-            } else if (chunk.type === 'signature') {
-                step.signature = chunk.content;
-            } else if (chunk.type === 'content') {
-                streamedContent += chunk.content;
-                step.content = streamedContent;
-            } else if (chunk.type === 'tool_call') {
-                const toolCall = {
-                    id: chunk.toolCall?.id || '',
-                    name: chunk.toolCall?.name || '',
-                    input: chunk.toolCall?.input || {}
-                };
-                step.toolCalls[toolCall.id] = toolCall;
-            } else if (chunk.type === 'tool_call_result') {
-                const toolCall = step.toolCalls[chunk.toolCallResult?.id || ''];
-                if (toolCall) {
-                    toolCall.result = chunk.toolCallResult?.result || {};
-                }
-            } else if (chunk.type === 'error') {
-                throw new Error(chunk.content);
-            }
-
-            // Update display during streaming
-            this.feedbackDisplay.updateConversationTurn(aiResponseEl, turn, true);
-        }
-        return step;
-    }
-
-    private async streamTurnResponse(turn: ConversationTurn, stepsLeft: number = 10, aiResponseEl?: HTMLElement) {
-        // Create the response element only on first call
-        if (!aiResponseEl) {
-            aiResponseEl = this.feedbackDisplay.createConversationTurn(turn);
-        }
+        const files = [{
+            type: 'text' as const,
+            path: this.currentFile.path,
+            name: this.currentFile.basename
+        }];
 
         try {
-            const updatedStep = await this.streamResponse(turn.steps[turn.steps.length - 1], turn, aiResponseEl);
-            if (Object.keys(updatedStep.toolCalls).length > 0 && stepsLeft > 0) {
-                const newStep = this.newStep({});
-                turn.steps.push(newStep);
-                await this.streamTurnResponse(turn, stepsLeft - 1, aiResponseEl);
-            } else {
-                turn.isComplete = true;
-            }
-            // Final update to ensure streaming indicators are removed
-            this.feedbackDisplay.updateConversationTurn(aiResponseEl, turn, false);
+            await this.conversationManager.newConversationRound(
+                prompt,
+                files,
+                this.handleConversationChunk.bind(this)
+            );
+
+            // Update snapshot baseline
+            this.fileManager.updateFeedbackBaseline(this.currentFile!);
+
+            // Update last feedback time for this file
+            this.lastFeedbackTimes.set(this.currentFile.path, new Date());
+
+            this.updateUI();
         } catch (error) {
-            turn.error = error.message;
-            turn.isComplete = true;
-            this.feedbackDisplay.updateConversationTurn(aiResponseEl, turn, false);
+            new Notice(`Error generating feedback: ${error.message}`);
         }
     }
 
     private async rerunConversationTurn(turn: ConversationTurn) {
         try {
-            // Find the turn in the conversation
-            const turnIndex = this.conversation.findIndex(t => t.id === turn.id);
-            if (turnIndex === -1) return;
+            // First, redisplay the conversation with the turns up to the one being rerun
+            const currentConversation = this.conversationManager.getConversation();
+            const turnIndex = currentConversation.findIndex(t => t.id === turn.id);
 
-            // Remove this turn and all subsequent turns
-            this.conversation = this.conversation.slice(0, turnIndex);
+            if (turnIndex !== -1) {
+                // Show only the turns before the one being rerun
+                const conversationBeforeRerun = currentConversation.slice(0, turnIndex);
+                this.feedbackDisplay.redisplayConversation(conversationBeforeRerun);
+            }
 
-            // Create a new turn with reset response
-            const newTurn: ConversationTurn = {
-                ...turn,
-                id: Date.now().toString(),
-                timestamp: new Date(),
-                steps: [{
-                    thinking: '',
-                    content: undefined,
-                    toolCalls: {}
-                }]
-            };
-
-            // Add the turn back and redisplay
-            this.feedbackDisplay.redisplayConversation(this.conversation);
-            this.conversation.push(newTurn);
-
-            // Rerun the response
-            await this.streamTurnResponse(newTurn);
+            // Then rerun the turn (this will add the new turn and stream the response)
+            await this.conversationManager.rerunConversationTurn(
+                turn.id,
+                this.handleConversationChunk.bind(this)
+            );
         } catch (error) {
             console.error('Error rerunning conversation turn:', error);
             new Notice('Error rerunning response. Please try again.');
+        }
+    }
+
+    private async editConversationTurn(turn: ConversationTurn, newMessage: string) {
+        try {
+            // First, redisplay the conversation with the turns up to the one being edited
+            const currentConversation = this.conversationManager.getConversation();
+            const turnIndex = currentConversation.findIndex(t => t.id === turn.id);
+
+            if (turnIndex !== -1) {
+                // Show only the turns before the one being edited
+                const conversationBeforeEdit = currentConversation.slice(0, turnIndex);
+                this.feedbackDisplay.redisplayConversation(conversationBeforeEdit);
+            }
+
+            // Then rerun the turn with the new message
+            await this.conversationManager.rerunConversationTurn(
+                turn.id,
+                this.handleConversationChunk.bind(this),
+                newMessage
+            );
+        } catch (error) {
+            console.error('Error editing conversation turn:', error);
+            new Notice('Error editing message. Please try again.');
         }
     }
 
@@ -300,9 +261,9 @@ export class ChatView extends ItemView {
 
         this.fileManager.clearNoteData(this.currentFile);
 
-        this.conversation = [];
+        // Create a new conversation manager to reset the conversation
+        this.conversationManager = new ConversationManager(this.plugin.settings, this.app);
 
-        this.feedbackDisplay.redisplayConversation(this.conversation);
         this.updateUI();
         new Notice(`Cleared tracking and feedback for ${this.currentFile.basename}`);
     }

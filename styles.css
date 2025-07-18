@@ -101,6 +101,58 @@ If your plugin does not need CSS, delete this file.
     line-height: 1.4;
 }
 
+.notes-critic-editable {
+    cursor: pointer;
+    transition: background-color 0.2s;
+    border-radius: 4px;
+}
+
+.notes-critic-editable:hover {
+    background-color: var(--background-modifier-hover);
+}
+
+/* Edit mode styles */
+.notes-critic-edit-wrapper {
+    position: relative;
+    width: 100%;
+}
+
+.notes-critic-edit-input {
+    min-height: 36px !important;
+    max-height: 120px !important;
+    resize: none !important;
+    width: 100% !important;
+    padding-right: 40px !important;
+    /* Make room for send button */
+    box-sizing: border-box;
+    field-sizing: content !important;
+}
+
+.notes-critic-edit-send-button {
+    position: absolute;
+    bottom: 8px;
+    right: 4px;
+    background: var(--interactive-accent);
+    border: none;
+    color: var(--text-on-accent);
+    cursor: pointer;
+    font-size: 0.9rem;
+    padding: 0.25rem;
+    border-radius: 3px;
+    height: 28px;
+    width: 28px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s;
+    opacity: 0.8;
+}
+
+.notes-critic-edit-send-button:hover {
+    background: var(--interactive-accent-hover);
+    opacity: 1;
+}
+
 .notes-critic-response-content {
     line-height: 1.5;
     font-size: 0.95em;
@@ -319,72 +371,76 @@ If your plugin does not need CSS, delete this file.
 }
 
 /* Chat input styles */
-.notes-critic-input-container {
-    border-top: 1px solid var(--background-modifier-border);
-    padding: 0.75rem;
-    background: var(--background-primary);
-    margin-top: auto;
+.notes-critic-message-input-container {
+    /* border-top: 1px solid var(--background-modifier-border);
+    background: var(--background-primary); */
+    /* margin-top: auto; */
 }
 
-.notes-critic-input-wrapper {
-    display: flex;
-    gap: 0.5rem;
-    align-items: flex-end;
+.notes-critic-message-input-wrapper {
+    position: relative;
+    width: 100%;
 }
 
-.notes-critic-textarea {
-    flex: 1;
+.notes-critic-message-textarea {
+    width: 100%;
     min-height: 36px;
     max-height: 120px;
-    padding: 0.5rem;
-    border: 1px solid var(--background-modifier-border);
-    border-radius: 4px;
+    padding: 0.75rem;
+    padding-right: 40px;
+    /* Make room for send button */
+    border: 0px;
     background: var(--background-primary);
     color: var(--text-normal);
     font-family: var(--font-interface);
     font-size: 0.9em;
     resize: none;
     overflow-y: auto;
+    box-sizing: border-box;
+    field-sizing: content;
 }
 
-.notes-critic-textarea:focus {
-    outline: none;
-    border-color: var(--interactive-accent);
+.notes-critic-message-textarea:focus {
+    /* outline: none;
+    border-color: var(--interactive-accent); */
 }
 
-.notes-critic-send-button {
-    padding: 0.5rem 1rem;
+.notes-critic-message-send-button {
+    position: absolute;
+    bottom: 8px;
+    right: 4px;
     background: var(--interactive-accent);
     color: var(--text-on-accent);
     border: none;
-    border-radius: 4px;
+    border-radius: 3px;
     cursor: pointer;
-    font-size: 0.9em;
-    font-weight: 500;
-    height: 36px;
-    white-space: nowrap;
+    font-size: 0.9rem;
+    padding: 0.25rem;
+    height: 28px;
+    width: 28px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s;
+    opacity: 0.8;
 }
 
-.notes-critic-send-button:hover {
+.notes-critic-message-send-button:hover {
     background: var(--interactive-accent-hover);
+    opacity: 1;
 }
 
-.notes-critic-send-button:disabled {
+.notes-critic-message-send-button:disabled {
     background: var(--background-modifier-border);
     color: var(--text-muted);
     cursor: not-allowed;
+    opacity: 0.5;
 }
 
 /* Responsive adjustments for narrow sidebars */
 @media (max-width: 400px) {
-    .notes-critic-input-wrapper {
-        flex-direction: column;
-        align-items: stretch;
-    }
-
-    .notes-critic-send-button {
-        width: 100%;
-        margin-top: 0.5rem;
+    .notes-critic-message-input-container {
+        padding: 0.5rem;
     }
 }
 
@@ -403,12 +459,12 @@ If your plugin does not need CSS, delete this file.
     align-items: stretch !important;
 }
 
-.notes-critic-textarea-container {
+.notes-critic-textarea-setting .notes-critic-textarea-container {
     width: 100%;
     margin-top: 0.5rem;
 }
 
-.notes-critic-textarea-container .notes-critic-textarea {
+.notes-critic-textarea-setting .notes-critic-textarea-container .notes-critic-textarea {
     width: 100%;
     box-sizing: border-box;
     min-height: 120px;
@@ -424,7 +480,7 @@ If your plugin does not need CSS, delete this file.
     overflow-y: auto;
 }
 
-.notes-critic-textarea-container .notes-critic-textarea:focus {
+.notes-critic-textarea-setting .notes-critic-textarea-container .notes-critic-textarea:focus {
     outline: none;
     border-color: var(--interactive-accent);
 }

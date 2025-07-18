@@ -1,26 +1,34 @@
 import { ConversationTurn, UserInput, TurnStep } from '../../types';
+import { ChatInput } from './ChatInput';
 
 const CSS_CLASSES = {
-    // Container classes
     messages: 'notes-critic-messages',
     stepContainer: 'notes-critic-step-container',
     detailsSection: 'notes-critic-details-section',
-
-    // User input classes
     userInputElement: 'notes-critic-user-input-element',
     userInputContent: 'notes-critic-user-input-content',
-
-    // AI response classes
     aiResponseElement: 'notes-critic-ai-response-element',
     responseContent: 'notes-critic-response-content',
-
-    // Content type classes
     thinkingContent: 'notes-critic-thinking-content',
     toolCallContent: 'notes-critic-tool-call-content',
-
-    // UI elements
     timestamp: 'notes-critic-timestamp',
     rerunButton: 'notes-critic-rerun-button',
+} as const;
+
+const DIFF_CLASSES = {
+    container: 'diff-container',
+    hunk: 'diff-hunk',
+    header: 'diff-header',
+    added: 'diff-added',
+    removed: 'diff-removed',
+    meta: 'diff-meta',
+    context: 'diff-context',
+} as const;
+
+const STREAMING_INDICATORS = {
+    cursor: '<span class="streaming-cursor">▋</span>',
+    dots: '<span class="processing-dots">',
+    dotsEnd: '</span>',
 } as const;
 
 interface StreamingState {
@@ -34,10 +42,12 @@ interface StreamingState {
 export class FeedbackDisplay {
     private container: HTMLElement;
     private onRerunCallback?: (turn: ConversationTurn) => void;
+    private onEditCallback?: (turn: ConversationTurn, newMessage: string) => void;
 
-    constructor(parent: Element, onRerun?: (turn: ConversationTurn) => void) {
+    constructor(parent: Element, onRerun?: (turn: ConversationTurn) => void, onEdit?: (turn: ConversationTurn, newMessage: string) => void) {
         this.container = this.createElement(parent, 'div', CSS_CLASSES.messages);
         this.onRerunCallback = onRerun;
+        this.onEditCallback = onEdit;
     }
 
     // Public API
@@ -67,16 +77,73 @@ export class FeedbackDisplay {
         });
     }
 
+    startConversationTurn(turn: ConversationTurn): HTMLElement {
+        // Immediately show the turn, even before any LLM response
+        const aiResponseEl = this.createConversationTurn(turn);
+        this.updateConversationTurn(aiResponseEl, turn, true);
+        return aiResponseEl;
+    }
+
+    handleConversationChunk(chunk: any, turn: ConversationTurn): void {
+        // For streaming updates, check if this turn still exists in the display
+        if (chunk.type !== 'turn_start' && !this.isTurnCurrentlyDisplayed(turn)) {
+            // Ignore chunks for turns that have been cancelled/removed
+            return;
+        }
+
+        switch (chunk.type) {
+            case 'turn_start':
+                this.startConversationTurn(turn);
+                break;
+
+            case 'step_start':
+            case 'thinking':
+            case 'content':
+            case 'tool_call':
+            case 'tool_call_result':
+                this.updateCurrentResponse(turn, true);
+                break;
+
+            case 'step_complete':
+            case 'turn_complete':
+            case 'error':
+                this.updateCurrentResponse(turn, false);
+                break;
+        }
+    }
+
+    private isTurnCurrentlyDisplayed(turn: ConversationTurn): boolean {
+        // Check if there's a user input element with this turn's ID
+        const userInputEl = this.container.querySelector(`[data-turn-id="${turn.id}"]`);
+        return userInputEl !== null;
+    }
+
+    private updateCurrentResponse(turn: ConversationTurn, isStreaming: boolean): void {
+        const currentResponseEl = this.getCurrentResponseElement();
+        if (currentResponseEl) {
+            this.updateConversationTurn(currentResponseEl, turn, isStreaming);
+        }
+    }
+
+    private getCurrentResponseElement(): HTMLElement | null {
+        const responseElements = this.container.querySelectorAll('.notes-critic-ai-response-element');
+        return responseElements[responseElements.length - 1] as HTMLElement || null;
+    }
+
     destroy(): void {
         // Clean up any event listeners if needed
     }
 
-    // User input creation
+    // ==================== USER INPUT RENDERING ====================
+
     private createUserInputElement(turn: ConversationTurn): HTMLElement {
         const userInputEl = this.createElement(this.container, 'div', CSS_CLASSES.userInputElement);
 
+        // Store turn ID for later reference
+        userInputEl.dataset.turnId = turn.id;
+
         this.createTimestamp(userInputEl, turn.timestamp);
-        this.createUserInputContent(userInputEl, turn.userInput);
+        this.createUserInputContent(userInputEl, turn.userInput, turn);
 
         return userInputEl;
     }
@@ -87,7 +154,7 @@ export class FeedbackDisplay {
         });
     }
 
-    private createUserInputContent(parent: HTMLElement, userInput: UserInput): void {
+    private createUserInputContent(parent: HTMLElement, userInput: UserInput, turn: ConversationTurn): void {
         const contentEl = this.createElement(parent, 'div', CSS_CLASSES.userInputContent);
 
         const content = this.formatUserInputContent(userInput);
@@ -96,60 +163,86 @@ export class FeedbackDisplay {
         } else {
             contentEl.textContent = content.text;
         }
+
+        // Make chat messages editable
+        if (userInput.type === 'chat_message' && this.onEditCallback) {
+            contentEl.classList.add('notes-critic-editable');
+            contentEl.title = 'Click to edit';
+            contentEl.addEventListener('click', () => this.startEditingMessage(contentEl, turn));
+        }
+    }
+
+    private startEditingMessage(contentEl: HTMLElement, turn: ConversationTurn): void {
+        const currentText = turn.userInput.type === 'chat_message' ? turn.userInput.message : '';
+        if (contentEl.children.length > 0) {
+            return;
+        }
+        contentEl.innerHTML = '';
+        const input = new ChatInput(contentEl, {
+            initialValue: currentText,
+            onSend: async (message: string) => {
+                this.onEditCallback?.(turn, message);
+                return Promise.resolve();
+            }
+        });
     }
 
     private formatUserInputContent(userInput: UserInput): { text: string; isHtml: boolean } {
-        switch (userInput.type) {
-            case 'file_change':
+        const formatters = {
+            file_change: () => {
+                const input = userInput as Extract<UserInput, { type: 'file_change' }>;
                 return {
-                    text: `<strong>File changes: ${userInput.filename}</strong><br>${this.formatDiff(userInput.diff)}`,
+                    text: `<strong>File changes: ${input.filename}</strong><br>${this.formatDiff(input.diff)}`,
                     isHtml: true
                 };
-            case 'chat_message':
+            },
+            chat_message: () => {
+                const input = userInput as Extract<UserInput, { type: 'chat_message' }>;
                 return {
-                    text: userInput.message,
+                    text: input.message,
                     isHtml: false
                 };
-            case 'manual_feedback':
-                const truncated = userInput.content.length > 200
-                    ? userInput.content.substring(0, 200) + '...'
-                    : userInput.content;
+            },
+            manual_feedback: () => {
+                const input = userInput as Extract<UserInput, { type: 'manual_feedback' }>;
                 return {
-                    text: `<strong>Manual feedback: ${userInput.filename}</strong><br>${truncated}`,
+                    text: `<strong>Manual feedback: ${input.filename}</strong><br>${this.truncateText(input.content, 200)}`,
                     isHtml: true
                 };
-            default:
-                return { text: '', isHtml: false };
-        }
+            }
+        };
+
+        return formatters[userInput.type]?.() || { text: '', isHtml: false };
+    }
+
+    private truncateText(text: string, maxLength: number): string {
+        return text.length > maxLength ? text.substring(0, maxLength) + '...' : text;
     }
 
     private formatDiff(diff: string): string {
         if (!diff) return '';
 
-        const lines = diff.split('\n');
-        const formattedLines = lines.map(line => {
-            if (line.startsWith('@@')) {
-                // Hunk header
-                return `<span class="diff-hunk">${this.escapeHtml(line)}</span>`;
-            } else if (line.startsWith('+++') || line.startsWith('---')) {
-                // File headers
-                return `<span class="diff-header">${this.escapeHtml(line)}</span>`;
-            } else if (line.startsWith('+')) {
-                // Added line
-                return `<span class="diff-added">${this.escapeHtml(line)}</span>`;
-            } else if (line.startsWith('-')) {
-                // Removed line
-                return `<span class="diff-removed">${this.escapeHtml(line)}</span>`;
-            } else if (line.startsWith('\\')) {
-                // No newline at end of file
-                return `<span class="diff-meta">${this.escapeHtml(line)}</span>`;
-            } else {
-                // Context line
-                return `<span class="diff-context">${this.escapeHtml(line)}</span>`;
-            }
-        });
+        const lineFormatters = [
+            { prefix: '@@', class: DIFF_CLASSES.hunk },
+            { prefix: ['+++', '---'], class: DIFF_CLASSES.header },
+            { prefix: '+', class: DIFF_CLASSES.added },
+            { prefix: '-', class: DIFF_CLASSES.removed },
+            { prefix: '\\', class: DIFF_CLASSES.meta },
+        ];
 
-        return `<div class="diff-container">${formattedLines.join('<br>')}</div>`;
+        const formatLine = (line: string): string => {
+            const formatter = lineFormatters.find(f =>
+                Array.isArray(f.prefix)
+                    ? f.prefix.some(p => line.startsWith(p))
+                    : line.startsWith(f.prefix)
+            );
+
+            const className = formatter?.class || DIFF_CLASSES.context;
+            return `<span class="${className}">${this.escapeHtml(line)}</span>`;
+        };
+
+        const formattedLines = diff.split('\n').map(formatLine);
+        return `<div class="${DIFF_CLASSES.container}">${formattedLines.join('<br>')}</div>`;
     }
 
     private escapeHtml(text: string): string {
@@ -158,7 +251,8 @@ export class FeedbackDisplay {
         return div.innerHTML;
     }
 
-    // AI response creation and updates
+    // ==================== AI RESPONSE RENDERING ====================
+
     private createAiResponseElement(turn: ConversationTurn): HTMLElement {
         const aiResponseEl = this.createElement(this.container, 'div', CSS_CLASSES.aiResponseElement);
 
@@ -169,8 +263,8 @@ export class FeedbackDisplay {
     }
 
     private createInitialProcessingState(aiResponseEl: HTMLElement, turn: ConversationTurn): void {
-        const hasNoContent = !turn.steps.length ||
-            (!turn.steps[0].content && !turn.steps[0].thinking);
+        const firstStep = turn.steps[0];
+        const hasNoContent = !turn.steps.length || (!firstStep?.content && !firstStep?.thinking);
 
         if (hasNoContent) {
             this.createProcessingIndicator(aiResponseEl, 'Processing');
@@ -212,7 +306,8 @@ export class FeedbackDisplay {
         });
     }
 
-    // Step creation and management
+    // ==================== STEP RENDERING ====================
+
     private createStepElement(step: TurnStep, streamingState: StreamingState): HTMLElement {
         const stepEl = document.createElement('div');
         stepEl.classList.add(CSS_CLASSES.stepContainer);
@@ -240,7 +335,8 @@ export class FeedbackDisplay {
         };
     }
 
-    // Thinking section
+    // ==================== THINKING SECTION ====================
+
     private createThinkingSection(container: HTMLElement, step: TurnStep, streamingState: StreamingState): void {
         const thinkingSection = this.createDetailsSection(container, 'Thinking');
         const thinkingContent = this.createElement(thinkingSection, 'div', CSS_CLASSES.thinkingContent);
@@ -258,9 +354,8 @@ export class FeedbackDisplay {
         let displayThinking = step.thinking || '';
 
         if (streamingState.isStreaming && !streamingState.hasContent && !streamingState.hasToolCalls) {
-            summary.textContent = 'Thinking';
-            summary.innerHTML += '<span class="processing-dots"></span>';
-            displayThinking += '<span class="streaming-cursor">▋</span>';
+            summary.innerHTML = `Thinking${STREAMING_INDICATORS.dots}${STREAMING_INDICATORS.dotsEnd}`;
+            displayThinking += STREAMING_INDICATORS.cursor;
         } else {
             summary.textContent = 'Thinking';
         }
@@ -268,7 +363,8 @@ export class FeedbackDisplay {
         thinkingContent.innerHTML = displayThinking.replace(/\n/g, '<br>');
     }
 
-    // Tool calls section
+    // ==================== TOOL CALLS SECTION ====================
+
     private createToolCallsSections(container: HTMLElement, step: TurnStep, streamingState: StreamingState): void {
         this.removeExistingToolSections(container);
 
@@ -285,17 +381,25 @@ export class FeedbackDisplay {
     }
 
     private populateToolContent(toolContent: HTMLElement, toolCall: any, streamingState: StreamingState): void {
+        const sections = [];
+
         if (toolCall.input) {
-            const inputJson = JSON.stringify(toolCall.input, null, 2).replace(/\n/g, '<br>');
-            toolContent.innerHTML += `<div><strong>Input:</strong><br><code>${inputJson}</code></div>`;
+            const inputJson = this.formatJson(toolCall.input);
+            sections.push(`<div><strong>Input:</strong><br><code>${inputJson}</code></div>`);
         }
 
         if (toolCall.result) {
-            const resultJson = JSON.stringify(toolCall.result, null, 2).replace(/\n/g, '<br>');
-            toolContent.innerHTML += `<div><strong>Result:</strong><br><code>${resultJson}</code></div>`;
+            const resultJson = this.formatJson(toolCall.result);
+            sections.push(`<div><strong>Result:</strong><br><code>${resultJson}</code></div>`);
         } else if (streamingState.isStreaming) {
-            toolContent.innerHTML += `<div><span class="processing-dots">Running tool</span></div>`;
+            sections.push(`<div>${STREAMING_INDICATORS.dots}Running tool${STREAMING_INDICATORS.dotsEnd}</div>`);
         }
+
+        toolContent.innerHTML = sections.join('');
+    }
+
+    private formatJson(obj: any): string {
+        return JSON.stringify(obj, null, 2).replace(/\n/g, '<br>');
     }
 
     private removeExistingToolSections(container: HTMLElement): void {
@@ -326,7 +430,7 @@ export class FeedbackDisplay {
     private renderStepContent(responseContentEl: HTMLElement, content: string, streamingState: StreamingState): void {
         let displayContent = content.replace(/\n/g, '<br>');
         if (streamingState.isStreaming) {
-            displayContent += '<span class="streaming-cursor">▋</span>';
+            displayContent += STREAMING_INDICATORS.cursor;
         }
         responseContentEl.innerHTML = displayContent;
     }
@@ -334,16 +438,23 @@ export class FeedbackDisplay {
     private renderProcessingState(responseContentEl: HTMLElement, step: TurnStep, streamingState: StreamingState): void {
         if (streamingState.hasThinking && !streamingState.hasContent) {
             responseContentEl.innerHTML = '';
-        } else if (streamingState.hasToolCalls) {
-            const runningTools = Object.values(step.toolCalls).filter((tool: any) => !tool.result);
-            const message = runningTools.length > 0 ? 'Running tools' : 'Processing tool results';
-            responseContentEl.innerHTML = `<span class="processing-dots">${message}</span>`;
-        } else {
-            responseContentEl.innerHTML = '<span class="processing-dots">Processing</span>';
+            return;
         }
+
+        const message = streamingState.hasToolCalls
+            ? this.getToolProcessingMessage(step)
+            : 'Processing';
+
+        responseContentEl.innerHTML = `${STREAMING_INDICATORS.dots}${message}${STREAMING_INDICATORS.dotsEnd}`;
     }
 
-    // Utility methods
+    private getToolProcessingMessage(step: TurnStep): string {
+        const runningTools = Object.values(step.toolCalls).filter((tool: any) => !tool.result);
+        return runningTools.length > 0 ? 'Running tools' : 'Processing tool results';
+    }
+
+    // ==================== UTILITY METHODS ====================
+
     private createDetailsSection(parent: HTMLElement, title: string): HTMLDetailsElement {
         const detailsSection = this.createElement(parent, 'details', CSS_CLASSES.detailsSection) as HTMLDetailsElement;
         this.createElement(detailsSection, 'summary', undefined, { textContent: title });
@@ -352,7 +463,7 @@ export class FeedbackDisplay {
 
     private createProcessingIndicator(parent: HTMLElement, message: string): HTMLElement {
         return this.createElement(parent, 'div', CSS_CLASSES.responseContent, {
-            innerHTML: `<span class="processing-dots">${message}</span>`
+            innerHTML: `${STREAMING_INDICATORS.dots}${message}${STREAMING_INDICATORS.dotsEnd}`
         });
     }
 
@@ -368,18 +479,9 @@ export class FeedbackDisplay {
     ): HTMLElement {
         const element = document.createElement(tagName);
 
-        if (className) {
-            element.classList.add(className);
-        }
-
-        if (options?.textContent) {
-            element.textContent = options.textContent;
-        }
-
-        if (options?.innerHTML) {
-            element.innerHTML = options.innerHTML;
-        }
-
+        if (className) element.classList.add(className);
+        if (options?.textContent) element.textContent = options.textContent;
+        if (options?.innerHTML) element.innerHTML = options.innerHTML;
         if (options?.attributes) {
             Object.entries(options.attributes).forEach(([key, value]) => {
                 element.setAttribute(key, value);

@@ -665,7 +665,7 @@ class AnthropicProvider extends BaseLLMProvider {
                     type: 'document',
                     source: {
                         type: 'text',
-                        data: file.content.toString(),
+                        data: file.content?.toString(),
                         media_type: file.mimeType || 'text/plain'
                     }
                 };
@@ -675,7 +675,7 @@ class AnthropicProvider extends BaseLLMProvider {
                     source: {
                         type: 'base64',
                         media_type: file.mimeType || 'image/png',
-                        data: file.content.toString('base64')
+                        data: file.content?.toString('base64')
                     }
                 };
             case 'pdf':
@@ -684,7 +684,7 @@ class AnthropicProvider extends BaseLLMProvider {
                     source: {
                         type: 'base64',
                         media_type: file.mimeType || 'application/pdf',
-                        data: file.content.toString('base64')
+                        data: file.content?.toString('base64')
                     }
                 };
             default:
@@ -703,7 +703,7 @@ class AnthropicProvider extends BaseLLMProvider {
                 ...message.userInput.files?.map(this.formatFile) || []
             ]
         }
-        const steps = message.steps.filter(step => step.content || step.thinking).map(step => {
+        const steps = message.steps.filter(step => step.content || step.thinking || Object.keys(step.toolCalls).length > 0).map(step => {
             if (!step.toolCalls || Object.keys(step.toolCalls).length === 0) {
                 return [{
                     role: "assistant",

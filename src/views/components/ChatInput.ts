@@ -1,26 +1,34 @@
 const CSS_CLASSES = {
-    inputContainer: 'notes-critic-input-container',
-    inputWrapper: 'notes-critic-input-wrapper',
-    textArea: 'notes-critic-textarea',
-    sendButton: 'notes-critic-send-button'
+    inputContainer: 'notes-critic-message-input-container',
+    inputWrapper: 'notes-critic-message-input-wrapper',
+    textArea: 'notes-critic-message-textarea',
+    sendButton: 'notes-critic-message-send-button'
 };
+
+export interface ChatInputOptions {
+    placeholder?: string;
+    initialValue?: string;
+    showContainer?: boolean;
+    onSend: (message: string) => Promise<void>;
+    onCancel?: () => void;
+}
 
 export class ChatInput {
     private container: HTMLElement;
     private textArea: HTMLTextAreaElement;
     private sendButton: HTMLButtonElement;
-    private onSendMessage: (message: string) => Promise<void>;
+    private options: ChatInputOptions;
 
-    constructor(parent: Element, onSendMessage: (message: string) => Promise<void>) {
-        this.onSendMessage = onSendMessage;
+    constructor(parent: Element, options: ChatInputOptions) {
+        this.options = options;
         this.container = this.createInputContainer(parent);
         this.setupEventHandlers();
     }
 
     private createInputContainer(parent: Element): HTMLElement {
-        const inputContainer = parent.createEl('div', {
-            cls: CSS_CLASSES.inputContainer
-        });
+        const inputContainer = this.options.showContainer === false ?
+            parent as HTMLElement :
+            parent.createEl('div', { cls: CSS_CLASSES.inputContainer });
 
         const inputWrapper = inputContainer.createEl('div', {
             cls: CSS_CLASSES.inputWrapper
@@ -28,29 +36,33 @@ export class ChatInput {
 
         this.textArea = inputWrapper.createEl('textarea', {
             cls: CSS_CLASSES.textArea,
-            attr: { placeholder: 'Type your message...', rows: '1' }
+            attr: {
+                placeholder: this.options.placeholder || 'Type your message...',
+                rows: '1'
+            }
         });
 
+        if (this.options.initialValue) {
+            this.textArea.value = this.options.initialValue;
+        }
+
         this.sendButton = inputWrapper.createEl('button', {
-            text: 'Send',
-            cls: CSS_CLASSES.sendButton
+            cls: CSS_CLASSES.sendButton,
+            attr: { title: 'Send message' }
         });
+        this.sendButton.innerHTML = '➤';
 
         return inputContainer;
     }
 
     private setupEventHandlers(): void {
-        // Auto-resize textarea
-        this.textArea.addEventListener('input', () => {
-            this.textArea.style.height = 'auto';
-            this.textArea.style.height = this.textArea.scrollHeight + 'px';
-        });
-
         // Handle Enter key (send message) and Shift+Enter (new line)
         this.textArea.addEventListener('keydown', async (e) => {
             if (e.key === 'Enter' && !e.shiftKey) {
                 e.preventDefault();
                 await this.handleSend();
+            } else if (e.key === 'Escape' && this.options.onCancel) {
+                this.options.onCancel();
             }
         });
 
@@ -64,13 +76,24 @@ export class ChatInput {
         const message = this.textArea.value.trim();
         if (message) {
             this.clearInput();
-            await this.onSendMessage(message);
+            await this.options.onSend(message);
         }
     }
 
     private clearInput(): void {
         this.textArea.value = '';
-        this.textArea.style.height = 'auto';
+    }
+
+    getValue(): string {
+        return this.textArea.value;
+    }
+
+    focus(): void {
+        this.textArea.focus();
+    }
+
+    select(): void {
+        this.textArea.select();
     }
 
     destroy(): void {

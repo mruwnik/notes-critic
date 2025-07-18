@@ -67,12 +67,18 @@ export class ObsidianTextEditorTool {
         }
     }
 
+    private async getFile(path: string): Promise<TFile | TFolder | null | TAbstractFile> {
+        const normalizedPath = path.replace(/^\/+/, '');
+        return this.app.vault.getAbstractFileByPath(normalizedPath || path);
+    }
+
     private async viewFile(command: ViewCommand): Promise<TextEditorToolResult> {
         const { path, view_range } = command;
 
         try {
             // Check if path is a directory
-            const abstractFile = this.app.vault.getAbstractFileByPath(path);
+            const abstractFile = await this.getFile(path);
+            console.log('abstractFile', abstractFile);
 
             if (abstractFile instanceof TFolder) {
                 // List directory contents
@@ -124,7 +130,7 @@ export class ObsidianTextEditorTool {
         const { path, old_str, new_str } = command;
 
         try {
-            const file = this.app.vault.getAbstractFileByPath(path);
+            const file = await this.getFile(path);
 
             if (!(file instanceof TFile)) {
                 return {
@@ -176,7 +182,7 @@ export class ObsidianTextEditorTool {
 
         try {
             // Check if file already exists
-            const existingFile = this.app.vault.getAbstractFileByPath(path);
+            const existingFile = await this.getFile(path);
             if (existingFile) {
                 return {
                     success: false,
@@ -203,7 +209,7 @@ export class ObsidianTextEditorTool {
         const { path, new_str, insert_line } = command;
 
         try {
-            const file = this.app.vault.getAbstractFileByPath(path);
+            const file = await this.getFile(path);
 
             if (!(file instanceof TFile)) {
                 return {
@@ -268,7 +274,7 @@ export class ObsidianTextEditorTool {
                 };
             }
 
-            const file = this.app.vault.getAbstractFileByPath(path);
+            const file = await this.getFile(path);
             if (!(file instanceof TFile)) {
                 return {
                     success: false,
@@ -294,7 +300,7 @@ export class ObsidianTextEditorTool {
     // Helper method to get file stats
     async getFileStats(path: string): Promise<TextEditorToolResult> {
         try {
-            const file = this.app.vault.getAbstractFileByPath(path);
+            const file = await this.getFile(path);
 
             if (!(file instanceof TFile)) {
                 return {
