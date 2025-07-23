@@ -1,6 +1,8 @@
 import { ConversationTurn, UserInput, TurnStep, ToolCall, LLMStreamChunk, NotesCriticSettings, LLMFile, TurnChunk } from 'types';
-import { getFeedback } from 'feedback/feedbackProvider';
+import { getFeedback } from 'diffs';
 import { App } from 'obsidian';
+import { randomUUID } from 'crypto';
+import { LLMProvider } from 'llm/llmProvider';
 
 export interface ConversationChunk {
     type: 'thinking' | 'content' | 'tool_call' | 'tool_call_result' | 'error' | 'step_complete' | 'turn_complete' | 'turn_start' | 'step_start';
@@ -51,11 +53,40 @@ const ABORT_ERROR_MESSAGE = 'Inference was cancelled';
 export class ConversationManager {
     private conversation: ConversationTurn[] = [];
     private turnAbortControllers = new Map<string, AbortController>();
+    public conversationId: string = randomUUID();
+    public title: string = '';
 
     constructor(
         private readonly settings: NotesCriticSettings,
         private readonly app: App
     ) { }
+
+    private logName(): string {
+        return `${this.settings.logPath}/${this.conversationId}.json`;
+    }
+
+    public async saveConversation(title?: string): Promise<void> {
+        this.title = title || this.title;
+        if (!await this.app.vault.adapter.exists(this.settings.logPath)) {
+            await this.app.vault.adapter.mkdir(this.settings.logPath);
+        }
+        await this.app.vault.adapter.write(this.logName(), JSON.stringify({
+            title,
+            conversation: this.conversation
+        }));
+        await this.loadConversation();
+    }
+
+    public async loadConversation(): Promise<void> {
+        if (await this.app.vault.adapter.exists(this.logName())) {
+            const conversationFile = await this.app.vault.adapter.read(this.logName());
+            const { title, conversation } = JSON.parse(conversationFile);
+            this.conversation = conversation;
+            this.title = title;
+        } else {
+            this.conversation = [];
+        }
+    }
 
     public getConversation(): ConversationTurn[] {
         return [...this.conversation];
@@ -190,6 +221,11 @@ export class ConversationManager {
         } finally {
             this.turnAbortControllers.delete(turn.id);
         }
+
+        const provider = new LLMProvider({ ...this.settings, model: this.settings.summarizerModel }, this.app);
+        provider.makeTitle(this.conversation).then(title => {
+            this.saveConversation(title);
+        });
     }
 
     private async streamSingleStep(
@@ -200,7 +236,8 @@ export class ConversationManager {
     ): Promise<TurnStep> {
         const step = turn.steps[turn.steps.length - 1];
 
-        for await (const chunk of getFeedback(this.conversation, overrideSettings || this.settings, this.app)) {
+        const provider = new LLMProvider(overrideSettings || this.settings, this.app);
+        for await (const chunk of provider.callLLM(this.conversation)) {
             if (abortController.signal.aborted) {
                 throw new Error(ABORT_ERROR_MESSAGE);
             }
@@ -352,4 +389,5 @@ export class ConversationManager {
             !step.thinking &&
             Object.keys(step.toolCalls).length === 0;
     }
+
 } 

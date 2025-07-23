@@ -61,6 +61,7 @@ abstract class BaseLLMProvider {
                 tools
             );
 
+            console.log('config', config.body);
             const response = this.streamResponse(config);
             let fullResponse = '';
 
@@ -354,6 +355,41 @@ abstract class BaseLLMProvider {
             console.error('API key test failed:', error);
             return false;
         }
+    }
+
+    public async makeTitle(conversation: ConversationTurn[]): Promise<string> {
+        const history = conversation.map(turn => {
+            const user = turn.userInput.prompt
+            const assistant = turn.steps.map(step => step.content).join('\n')
+            return `User: ${user}\nAssistant: ${assistant}`
+        }).join('\n\n')
+
+        const titleConversation: ConversationTurn[] = [
+            {
+                id: 'summary',
+                timestamp: new Date(),
+                userInput: {
+                    type: 'chat_message',
+                    message: '',
+                    prompt: `Please come up with a title for the following conversation in up to 30 characters.
+                    The title should be a single sentence that captures the essence of the conversation.
+                    The title should be in the same language as the conversation.
+                    The title should be a single sentence that captures the essence of the conversation.
+
+                    Please return only the title, no other text.
+
+            ${history}`
+                },
+                steps: [],
+                isComplete: false
+            }
+        ]
+        for await (const chunk of this.callLLM(titleConversation, "You're an expert at coming up with titles for conversations")) {
+            if (chunk.type === 'content' && chunk.isComplete) {
+                return chunk.content;
+            }
+        }
+        return '';
     }
 }
 
@@ -910,14 +946,21 @@ export class LLMProvider {
         this.provider = this.createProvider(settings, app);
     }
 
-    static async testApiKey(apiKey: string, provider: 'anthropic' | 'openai', app: App): Promise<boolean> {
+    static getProvider(provider: 'anthropic' | 'openai'): typeof BaseLLMProvider {
         switch (provider) {
             case 'openai':
-                return OpenAIProvider.testApiKey(apiKey, app);
+                return OpenAIProvider;
             case 'anthropic':
-                return AnthropicProvider.testApiKey(apiKey, app);
-            default:
-                return false;
+                return AnthropicProvider;
         }
+    }
+
+    static async testApiKey(apiKey: string, provider: 'anthropic' | 'openai', app: App): Promise<boolean> {
+        const Provider = this.getProvider(provider);
+        return await Provider.testApiKey(apiKey, app);
+    }
+
+    public async makeTitle(conversation: ConversationTurn[]): Promise<string> {
+        return await this.provider.makeTitle(conversation);
     }
 }

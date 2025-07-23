@@ -1,18 +1,3 @@
-import { ConversationTurn, LLMStreamChunk, NotesCriticSettings } from 'types';
-import { LLMProvider } from 'llm/llmProvider';
-import { App } from 'obsidian';
-
-
-export async function* getFeedback(
-    history: ConversationTurn[],
-    settings: NotesCriticSettings,
-    app: App
-): AsyncGenerator<LLMStreamChunk, void, unknown> {
-    const provider = new LLMProvider(settings, app);
-    yield* provider.callLLM(history);
-}
-
-
 export function generateDiff(baseline: string, current: string): string {
     if (baseline === current) {
         return 'No changes detected';

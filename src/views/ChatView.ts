@@ -1,6 +1,6 @@
 import { ItemView, WorkspaceLeaf, TFile, Notice, Plugin } from 'obsidian';
 import { CHAT_VIEW_CONFIG, NoteSnapshot, ConversationTurn, NotesCriticSettings } from 'types';
-import { generateDiff } from 'feedback/feedbackProvider';
+import { generateDiff } from 'diffs';
 import { FeedbackDisplay } from 'views/components/FeedbackDisplay';
 import { ChatInput } from 'views/components/ChatInput';
 import { ControlPanel } from 'views/components/ControlPanel';

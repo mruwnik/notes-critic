@@ -45,6 +45,7 @@ export type UserInput =
 export interface NotesCriticSettings {
     systemPrompt: string;
     model: string;
+    summarizerModel: string;
     anthropicApiKey: string;
     openaiApiKey: string;
     maxHistoryTokens: number;
@@ -57,6 +58,7 @@ export interface NotesCriticSettings {
     feedbackThreshold: number;
     feedbackCooldownSeconds: number;
     feedbackPrompt: string;
+    logPath: string;
 }
 
 export interface MCPServerConfig {
@@ -132,6 +134,7 @@ Changes made:
 
 Please provide constructive feedback focusing on the recent changes.`,
     model: 'anthropic/claude-3-sonnet-20240229',
+    summarizerModel: 'anthropic/claude-3-5-haiku-latest',
     anthropicApiKey: '',
     openaiApiKey: '',
     maxHistoryTokens: 4000,
@@ -140,7 +143,8 @@ Please provide constructive feedback focusing on the recent changes.`,
     mcpEnabled: false,
     mcpServers: [],
     mcpServerUrl: '',
-    mcpMode: 'disabled' as const
+    mcpMode: 'disabled' as const,
+    logPath: '.notes-critic/conversations'
 };
 
 export const CHAT_VIEW_CONFIG = {
