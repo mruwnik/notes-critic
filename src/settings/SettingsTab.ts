@@ -3,6 +3,7 @@ import { NotesCriticSettings } from 'types';
 import { LLMProvider } from 'llm/llmProvider';
 import { MCPClient } from 'llm/mcpClient';
 import { OAuthClient } from 'llm/oauthClient';
+import { RulesSettingsComponent } from 'settings/components/RulesSettingsComponent';
 
 export class NotesCriticSettingsTab extends PluginSettingTab {
     plugin: Plugin & { settings: NotesCriticSettings; saveSettings(): Promise<void> };
@@ -102,7 +103,7 @@ export class NotesCriticSettingsTab extends PluginSettingTab {
                         button.setDisabled(true);
 
                         try {
-                            const isValid = await LLMProvider.testApiKey(displayValue, options.provider);
+                            const isValid = await LLMProvider.testApiKey(displayValue, options.provider, this.app);
 
                             if (isValid) {
                                 button.setButtonText('✓ Valid');
@@ -221,7 +222,13 @@ export class NotesCriticSettingsTab extends PluginSettingTab {
                     .setTooltip('Test MCP server connection')
                     .setClass('notes-critic-test-button')
                     .onClick(async () => {
-                        const originalText = button.buttonEl.textContent;
+                        if (!this.plugin.settings.mcpServerUrl) {
+                            button.setButtonText('No Server URL')
+                                .setTooltip('Enter a valid MCP server URL first')
+                                .setClass('notes-critic-test-button')
+                            return;
+                        }
+
                         button.setButtonText('Testing...');
                         button.setDisabled(true);
 
@@ -259,7 +266,17 @@ export class NotesCriticSettingsTab extends PluginSettingTab {
     }
 
     private createMCPAuthSetting(): Setting {
-        const oauthClient = new OAuthClient(this.plugin.settings.mcpServerUrl || '');
+        const serverUrl = this.plugin.settings.mcpServerUrl;
+        let oauthClient: OAuthClient | null = null;
+
+        // Only create OAuthClient if we have a valid server URL
+        if (serverUrl && serverUrl.trim().length > 0) {
+            try {
+                oauthClient = new OAuthClient(serverUrl);
+            } catch (error) {
+                console.warn('Invalid MCP server URL for OAuth:', error);
+            }
+        }
 
         return new Setting(this.containerEl)
             .setName('MCP Authorization')
@@ -268,7 +285,12 @@ export class NotesCriticSettingsTab extends PluginSettingTab {
                 let isWaitingForCallback = false;
 
                 const updateButton = () => {
-                    if (isWaitingForCallback) {
+                    if (!oauthClient) {
+                        button.setButtonText('No Server URL')
+                            .setTooltip('Enter a valid MCP server URL first')
+                            .setClass('notes-critic-test-button')
+                            .setDisabled(true);
+                    } else if (isWaitingForCallback) {
                         button.setButtonText('Complete Auth')
                             .setTooltip('Complete authorization in browser, then click here')
                             .setClass('notes-critic-test-button');
@@ -286,6 +308,10 @@ export class NotesCriticSettingsTab extends PluginSettingTab {
                 updateButton();
 
                 button.onClick(async () => {
+                    if (!oauthClient) {
+                        return;
+                    }
+
                     await oauthClient.logout();
                     try {
                         button.setButtonText('Authorizing...');
@@ -313,7 +339,7 @@ export class NotesCriticSettingsTab extends PluginSettingTab {
             });
     }
 
-    display(): void {
+    async display(): Promise<void> {
         const { containerEl } = this;
 
         containerEl.empty();
@@ -390,17 +416,6 @@ export class NotesCriticSettingsTab extends PluginSettingTab {
         this.createMCPServerSetting();
         this.createMCPAuthSetting();
 
-        this.createDropdownSetting({
-            name: 'MCP Mode',
-            desc: 'How to handle MCP integration',
-            field: 'mcpMode',
-            choices: {
-                'disabled': 'Disabled',
-                'enabled': 'Enabled',
-                'required': 'Required (fail if unavailable)'
-            }
-        });
-
         // Feedback Settings
         this.createSectionHeader('Feedback Settings');
 
@@ -458,5 +473,15 @@ export class NotesCriticSettingsTab extends PluginSettingTab {
                 return (!isNaN(tokens) && tokens > 0) ? tokens : undefined;
             }
         });
+
+        // Rules Management Section
+        this.createSectionHeader('Rules Management');
+        await this.createRulesOverview();
+    }
+
+    private async createRulesOverview(): Promise<void> {
+        const container = this.containerEl.createDiv();
+        const rulesComponent = new RulesSettingsComponent(this.app, container);
+        await rulesComponent.render();
     }
 } 

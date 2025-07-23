@@ -165,9 +165,9 @@ abstract class BaseLLMProvider {
         if (message.userInput.files && message.userInput.files.length > 0) {
             for (const file of message.userInput.files) {
                 if (file.type === 'text') {
-                    content.push(this.formatText(file.content || '', file.name));
+                    content.push(this.formatText(file.content?.toString() || '', file.name));
                 } else if (file.type === 'image') {
-                    content.push(this.formatImage(file.content || '', file.mimeType || 'image/png'));
+                    content.push(this.formatImage(file.content?.toString() || '', file.mimeType || 'image/png'));
                 }
             }
         }
@@ -299,7 +299,8 @@ abstract class BaseLLMProvider {
             } as any;
 
             const tempProvider = new (this.constructor as any)(tempSettings, testApp);
-            const config = tempProvider.createConfig([{ role: 'user', content: 'Hi' }], '', false, []);
+            const config = tempProvider.createConfig([{ userInput: { type: 'chat_message', prompt: 'Hi' }, steps: [] }], '', false, []);
+            delete config['body']['tools'];
 
             // Merge body with overrides and remove any unwanted fields
             const testBody = { ...config.body, ...bodyOverrides };
@@ -389,14 +390,14 @@ class OpenAIProvider extends BaseLLMProvider {
     protected formatFile(file: LLMFile): any {
         switch (file.type) {
             case 'text':
-                return this.formatText(file.content.toString(), file.name);
+                return this.formatText(file.content?.toString() || '', file.name);
             case 'image':
-                return this.formatImage(file.content.toString('base64'), file.mimeType || 'image/png');
+                return this.formatImage(file.content || '', file.mimeType || 'image/png');
             case 'pdf':
                 return {
                     type: 'input_file',
                     filename: file.name,
-                    file_data: file.content.toString('base64')
+                    file_data: file.content || ''
                 }
         }
         return null;
@@ -675,7 +676,7 @@ class AnthropicProvider extends BaseLLMProvider {
                     source: {
                         type: 'base64',
                         media_type: file.mimeType || 'image/png',
-                        data: file.content?.toString('base64')
+                        data: file.content
                     }
                 };
             case 'pdf':
@@ -684,7 +685,7 @@ class AnthropicProvider extends BaseLLMProvider {
                     source: {
                         type: 'base64',
                         media_type: file.mimeType || 'application/pdf',
-                        data: file.content?.toString('base64')
+                        data: file.content
                     }
                 };
             default:

@@ -17,8 +17,7 @@ export class ObsidianFileProcessor {
                 try {
                     const tFile = this.app.vault.getAbstractFileByPath(file.path);
                     if (tFile instanceof TFile) {
-                        const content = await this.app.vault.read(tFile);
-                        processedFile.content = Buffer.from(content);
+                        processedFile.content = await this.app.vault.read(tFile);
                     } else {
                         throw new Error(`Note not found: ${file.path}`);
                     }
@@ -33,8 +32,9 @@ export class ObsidianFileProcessor {
                     const tFile = this.app.vault.getAbstractFileByPath(file.path);
                     if (tFile instanceof TFile) {
                         const arrayBuffer = await this.app.vault.readBinary(tFile);
-                        const buffer = Buffer.from(arrayBuffer);
-                        processedFile.content = buffer;
+                        const uint8Array = new Uint8Array(arrayBuffer);
+                        const binaryString = uint8Array.reduce((acc, byte) => acc + String.fromCharCode(byte), '');
+                        processedFile.content = btoa(binaryString);
                     } else {
                         throw new Error(`Image not found: ${file.path}`);
                     }

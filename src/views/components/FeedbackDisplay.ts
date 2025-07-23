@@ -199,8 +199,8 @@ export class FeedbackDisplay {
             chat_message: () => {
                 const input = userInput as Extract<UserInput, { type: 'chat_message' }>;
                 return {
-                    text: input.message,
-                    isHtml: false
+                    text: input.message.replace(/\n/g, '<br>'),
+                    isHtml: true
                 };
             },
             manual_feedback: () => {

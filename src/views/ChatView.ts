@@ -1,11 +1,12 @@
 import { ItemView, WorkspaceLeaf, TFile, Notice, Plugin } from 'obsidian';
-import { CHAT_VIEW_CONFIG, NoteSnapshot, ConversationTurn, UserInput, NotesCriticSettings, LLMFile, TurnStep, ToolCall } from 'types';
+import { CHAT_VIEW_CONFIG, NoteSnapshot, ConversationTurn, NotesCriticSettings } from 'types';
 import { generateDiff } from 'feedback/feedbackProvider';
 import { FeedbackDisplay } from 'views/components/FeedbackDisplay';
 import { ChatInput } from 'views/components/ChatInput';
 import { ControlPanel } from 'views/components/ControlPanel';
 import { FileManager } from 'views/components/FileManager';
 import { ConversationManager, ConversationChunk } from 'conversation/ConversationManager';
+import { RuleManager } from 'rules/RuleManager';
 
 export class ChatView extends ItemView {
     private currentFile: TFile | null = null;
@@ -13,6 +14,7 @@ export class ChatView extends ItemView {
     private noteSnapshots: Map<string, NoteSnapshot> = new Map();
     private conversationManager: ConversationManager;
     private lastFeedbackTimes: Map<string, Date> = new Map();
+    private ruleManager: RuleManager;
 
     // Components
     private feedbackDisplay: FeedbackDisplay;
@@ -25,6 +27,7 @@ export class ChatView extends ItemView {
         this.plugin = plugin;
         this.conversationManager = new ConversationManager(plugin.settings, this.app);
         this.fileManager = new FileManager(this.app, this.noteSnapshots, this.onFileChange.bind(this));
+        this.ruleManager = new RuleManager(this.app);
     }
 
     getViewType() {
@@ -35,6 +38,10 @@ export class ChatView extends ItemView {
         return CHAT_VIEW_CONFIG.name;
     }
 
+    getIcon() {
+        return CHAT_VIEW_CONFIG.icon;
+    }
+
     async onOpen() {
         const container = this.containerEl.children[1];
         container.empty();
@@ -42,6 +49,9 @@ export class ChatView extends ItemView {
         this.buildUI(container);
         this.initializeView();
         this.registerEventListeners();
+
+        // Initialize rule manager
+        await this.ruleManager.initialize();
     }
 
     private buildUI(container: Element) {
@@ -112,18 +122,30 @@ export class ChatView extends ItemView {
         this.feedbackDisplay.redisplayConversation(this.conversationManager.getConversation());
     }
 
+    private async currentConfig(): Promise<NotesCriticSettings | undefined> {
+        return this.currentFile ? await this.ruleManager.getEffectiveConfig(this.currentFile.path, this.plugin.settings) : undefined;
+    }
+
     private async onFileModified(file: TFile) {
         if (!file) return;
 
         await this.fileManager.updateFileSnapshot(file);
         this.updateUI();
 
+        // Check if auto-triggering is enabled for this file
+        const shouldAutoTrigger = await this.ruleManager.shouldAutoTrigger(file.path);
+        if (!shouldAutoTrigger) return;
+
+        // Get effective configuration for this file
+        const config = await this.currentConfig();
+        console.log('config', config);
+
         // Check if we should auto-trigger feedback
         const snapshot = this.noteSnapshots.get(file.path);
-        if (snapshot && snapshot.changeCount >= this.plugin.settings.feedbackThreshold) {
+        if (snapshot && snapshot.changeCount >= (config?.feedbackThreshold ?? 0)) {
             // Check cooldown period
             const now = new Date();
-            const cooldownMs = this.plugin.settings.feedbackCooldownSeconds * 1000;
+            const cooldownMs = (config?.feedbackCooldownSeconds ?? 0) * 1000;
             const lastFeedbackTime = this.lastFeedbackTimes.get(file.path);
             const timeSinceLastFeedback = lastFeedbackTime ?
                 now.getTime() - lastFeedbackTime.getTime() :
@@ -147,9 +169,11 @@ export class ChatView extends ItemView {
             this.updateUI();
 
             await this.conversationManager.newConversationRound(
-                message,
-                undefined,
-                this.handleConversationChunk.bind(this)
+                {
+                    prompt: message,
+                    callback: this.handleConversationChunk.bind(this),
+                    overrideSettings: await this.currentConfig()
+                }
             );
         } catch (error) {
             new Notice(`Error sending message: ${error.message}`);
@@ -180,7 +204,9 @@ export class ChatView extends ItemView {
         }
 
         const diff = generateDiff(snapshot.baseline, snapshot.current);
-        const prompt = this.plugin.settings.feedbackPrompt
+
+        const feedbackPrompt = await this.ruleManager.getFeedbackPrompt(this.currentFile.path, this.plugin.settings);
+        const prompt = feedbackPrompt
             .replace(/\${noteName}/g, this.currentFile.basename)
             .replace(/\${diff}/g, diff);
 
@@ -192,9 +218,12 @@ export class ChatView extends ItemView {
 
         try {
             await this.conversationManager.newConversationRound(
-                prompt,
-                files,
-                this.handleConversationChunk.bind(this)
+                {
+                    prompt,
+                    files,
+                    callback: this.handleConversationChunk.bind(this),
+                    overrideSettings: await this.currentConfig()
+                }
             );
 
             // Update snapshot baseline
@@ -221,10 +250,14 @@ export class ChatView extends ItemView {
                 this.feedbackDisplay.redisplayConversation(conversationBeforeRerun);
             }
 
+
             // Then rerun the turn (this will add the new turn and stream the response)
             await this.conversationManager.rerunConversationTurn(
-                turn.id,
-                this.handleConversationChunk.bind(this)
+                {
+                    turnId: turn.id,
+                    callback: this.handleConversationChunk.bind(this),
+                    overrideSettings: await this.currentConfig()
+                }
             );
         } catch (error) {
             console.error('Error rerunning conversation turn:', error);
@@ -246,9 +279,12 @@ export class ChatView extends ItemView {
 
             // Then rerun the turn with the new message
             await this.conversationManager.rerunConversationTurn(
-                turn.id,
-                this.handleConversationChunk.bind(this),
-                newMessage
+                {
+                    turnId: turn.id,
+                    callback: this.handleConversationChunk.bind(this),
+                    prompt: newMessage,
+                    overrideSettings: await this.currentConfig()
+                }
             );
         } catch (error) {
             console.error('Error editing conversation turn:', error);

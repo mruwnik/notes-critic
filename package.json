@@ -6,12 +6,14 @@
 	"scripts": {
 		"dev": "node esbuild.config.mjs",
 		"build": "tsc -noEmit -skipLibCheck && node esbuild.config.mjs production",
+		"package": "npm run build && zip -j notes-critic-release.zip main.js styles.css manifest.json",
 		"version": "node version-bump.mjs && git add manifest.json versions.json"
 	},
 	"keywords": [],
 	"author": "Mruwnik",
 	"license": "MIT",
 	"devDependencies": {
+		"@types/minimatch": "^5.1.2",
 		"@types/node": "^16.11.6",
 		"@typescript-eslint/eslint-plugin": "5.29.0",
 		"@typescript-eslint/parser": "5.29.0",

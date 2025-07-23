@@ -126,10 +126,11 @@ async function* streamNodeRequest(config: HttpConfig): AsyncGenerator<string, vo
 
 
 export async function* callEndpoint(config: HttpConfig): AsyncGenerator<string, void, unknown> {
-    if (typeof require !== 'undefined') {
+    if (typeof require !== 'undefined' && require('https')) {
         yield* streamNodeRequest(config);
+    } else {
+        yield* callRequestUrl(config);
     }
-    yield* callRequestUrl(config);
 }
 
 

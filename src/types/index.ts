@@ -62,7 +62,7 @@ export interface MCPServerConfig {
 export interface LLMFile {
     type: 'text' | 'image' | 'pdf';
     path: string;
-    content?: Buffer;
+    content?: string;
     mimeType?: string;
     name?: string;
 }
@@ -137,3 +137,36 @@ export const CHAT_VIEW_CONFIG = {
     name: 'Notes Critic Chat',
     icon: 'message-square'
 };
+
+export interface NotesCriticRule {
+    // Meta information
+    name: string;
+    enabled: boolean;
+    priority: number;
+
+    // File matching
+    globs: string[];
+    exclude?: string[];
+
+    // Feedback behavior
+    autoTrigger: boolean;
+    feedbackThreshold?: number;
+    feedbackCooldownSeconds?: number;
+
+    // LLM configuration
+    feedbackPrompt?: string;
+    systemPrompt?: string;
+    model?: string;
+    maxTokens?: number;
+    maxHistoryTokens?: number;
+    thinkingBudgetTokens?: number;
+
+    // Rule source info
+    filePath: string;
+    content: string; // The markdown content after frontmatter
+}
+
+export interface RuleMatch {
+    rule: NotesCriticRule;
+    matchedPattern: string;
+}

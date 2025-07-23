@@ -8,44 +8,6 @@ import { MCP_AUTH_CALLBACK } from './constants';
 export default class NotesCritic extends Plugin {
     settings: NotesCriticSettings;
 
-    async onload() {
-        await this.loadSettings();
-
-        this.registerView(CHAT_VIEW_CONFIG.type, (leaf) => {
-            return new ChatView(leaf, this);
-        });
-
-        this.registerObsidianProtocolHandler(MCP_AUTH_CALLBACK, async (e) => {
-            const parameters = e as unknown as { code: string, state: string };
-            const oauthClient = new OAuthClient(this.settings.mcpServerUrl || '');
-            await oauthClient.exchangeCodeForToken(parameters.code, parameters.state);
-        });
-
-        this.addRibbonIcon(
-            CHAT_VIEW_CONFIG.icon,
-            CHAT_VIEW_CONFIG.name,
-            async () => {
-                const leafs = this.app.workspace.getLeavesOfType(
-                    CHAT_VIEW_CONFIG.type
-                );
-                let leaf: WorkspaceLeaf;
-                if (leafs.length === 0) {
-                    leaf =
-                        this.app.workspace.getRightLeaf(false) ??
-                        this.app.workspace.getLeaf();
-                    await leaf.setViewState({
-                        type: CHAT_VIEW_CONFIG.type,
-                    });
-                } else {
-                    leaf = leafs.first()!;
-                }
-                await this.app.workspace.revealLeaf(leaf);
-            }
-        );
-
-        this.addSettingTab(new NotesCriticSettingsTab(this.app, this));
-    }
-
     async activateView() {
         const { workspace } = this.app;
 
@@ -68,6 +30,28 @@ export default class NotesCritic extends Plugin {
         if (leaf) {
             workspace.revealLeaf(leaf);
         }
+    }
+
+    async onload() {
+        await this.loadSettings();
+
+        this.registerView(CHAT_VIEW_CONFIG.type, (leaf) => {
+            return new ChatView(leaf, this);
+        });
+
+        this.registerObsidianProtocolHandler(MCP_AUTH_CALLBACK, async (e) => {
+            const parameters = e as unknown as { code: string, state: string };
+            const oauthClient = new OAuthClient(this.settings.mcpServerUrl || '');
+            await oauthClient.exchangeCodeForToken(parameters.code, parameters.state);
+        });
+
+        this.addRibbonIcon(
+            CHAT_VIEW_CONFIG.icon,
+            CHAT_VIEW_CONFIG.name,
+            this.activateView.bind(this)
+        );
+
+        this.addSettingTab(new NotesCriticSettingsTab(this.app, this));
     }
 
     async triggerFeedbackForCurrentNote() {

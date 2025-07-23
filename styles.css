@@ -385,7 +385,6 @@ If your plugin does not need CSS, delete this file.
 .notes-critic-message-textarea {
     width: 100%;
     min-height: 36px;
-    max-height: 120px;
     padding: 0.75rem;
     padding-right: 40px;
     /* Make room for send button */
@@ -502,4 +501,105 @@ If your plugin does not need CSS, delete this file.
 .notes-critic-test-button-invalid {
     background: var(--text-error) !important;
     color: white !important;
+}
+
+/* Rules Management Styles */
+.notes-critic-rules-overview {
+    border: 1px solid var(--background-modifier-border);
+    border-radius: 8px;
+    padding: 16px;
+    background: var(--background-secondary);
+    margin-top: 16px;
+}
+
+.notes-critic-rules-description {
+    margin-bottom: 16px;
+    color: var(--text-muted);
+}
+
+.notes-critic-rules-buttons {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 16px;
+}
+
+.notes-critic-rules-buttons button {
+    padding: 8px 16px;
+    border-radius: 4px;
+    border: 1px solid var(--background-modifier-border);
+    background: var(--background-primary);
+    color: var(--text-normal);
+    cursor: pointer;
+}
+
+.notes-critic-rules-buttons button:hover {
+    background: var(--background-modifier-hover);
+}
+
+.notes-critic-rules-buttons button.mod-cta {
+    background: var(--interactive-accent);
+    color: var(--text-on-accent);
+    border-color: var(--interactive-accent);
+}
+
+.notes-critic-rules-list {
+    max-height: 400px;
+    overflow-y: auto;
+}
+
+.notes-critic-rule-card {
+    border: 1px solid var(--background-modifier-border);
+    border-radius: 6px;
+    padding: 12px;
+    margin-bottom: 12px;
+    background: var(--background-primary);
+}
+
+.notes-critic-rule-card.notes-critic-rule-disabled {
+    opacity: 0.6;
+    border-color: var(--text-faint);
+}
+
+.notes-critic-rule-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    margin-bottom: 8px;
+}
+
+.notes-critic-rule-name {
+    margin: 0;
+    font-size: 1.1em;
+    color: var(--text-normal);
+}
+
+.notes-critic-rule-path {
+    font-size: 0.8em;
+    color: var(--text-muted);
+    font-family: var(--font-monospace);
+}
+
+.notes-critic-rule-details p {
+    margin: 4px 0;
+    font-size: 0.9em;
+    color: var(--text-muted);
+}
+
+.notes-critic-rule-details strong {
+    color: var(--text-normal);
+}
+
+.notes-critic-no-rules {
+    text-align: center;
+    color: var(--text-muted);
+    font-style: italic;
+    padding: 20px;
+}
+
+.notes-critic-error {
+    color: var(--text-error);
+    background: var(--background-modifier-error);
+    padding: 8px;
+    border-radius: 4px;
+    font-size: 0.9em;
 }
