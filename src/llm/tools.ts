@@ -78,7 +78,6 @@ export class ObsidianTextEditorTool {
         try {
             // Check if path is a directory
             const abstractFile = await this.getFile(path);
-            console.log('abstractFile', abstractFile);
 
             if (abstractFile instanceof TFolder) {
                 // List directory contents

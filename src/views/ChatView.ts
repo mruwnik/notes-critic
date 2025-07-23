@@ -74,7 +74,6 @@ export class ChatView extends ItemView {
         this.feedbackDisplay = new FeedbackDisplay(
             container,
             this.rerunConversationTurn.bind(this),
-            this.editConversationTurn.bind(this)
         );
         this.chatInput = new ChatInput(container, {
             onSend: this.sendChatMessage.bind(this)
@@ -138,7 +137,6 @@ export class ChatView extends ItemView {
 
         // Get effective configuration for this file
         const config = await this.currentConfig();
-        console.log('config', config);
 
         // Check if we should auto-trigger feedback
         const snapshot = this.noteSnapshots.get(file.path);
@@ -238,7 +236,7 @@ export class ChatView extends ItemView {
         }
     }
 
-    private async rerunConversationTurn(turn: ConversationTurn) {
+    private async rerunConversationTurn(turn: ConversationTurn, message?: string) {
         try {
             // First, redisplay the conversation with the turns up to the one being rerun
             const currentConversation = this.conversationManager.getConversation();
@@ -250,13 +248,13 @@ export class ChatView extends ItemView {
                 this.feedbackDisplay.redisplayConversation(conversationBeforeRerun);
             }
 
-
             // Then rerun the turn (this will add the new turn and stream the response)
             await this.conversationManager.rerunConversationTurn(
                 {
                     turnId: turn.id,
                     callback: this.handleConversationChunk.bind(this),
-                    overrideSettings: await this.currentConfig()
+                    overrideSettings: await this.currentConfig(),
+                    prompt: message
                 }
             );
         } catch (error) {
@@ -265,37 +263,11 @@ export class ChatView extends ItemView {
         }
     }
 
-    private async editConversationTurn(turn: ConversationTurn, newMessage: string) {
-        try {
-            // First, redisplay the conversation with the turns up to the one being edited
-            const currentConversation = this.conversationManager.getConversation();
-            const turnIndex = currentConversation.findIndex(t => t.id === turn.id);
-
-            if (turnIndex !== -1) {
-                // Show only the turns before the one being edited
-                const conversationBeforeEdit = currentConversation.slice(0, turnIndex);
-                this.feedbackDisplay.redisplayConversation(conversationBeforeEdit);
-            }
-
-            // Then rerun the turn with the new message
-            await this.conversationManager.rerunConversationTurn(
-                {
-                    turnId: turn.id,
-                    callback: this.handleConversationChunk.bind(this),
-                    prompt: newMessage,
-                    overrideSettings: await this.currentConfig()
-                }
-            );
-        } catch (error) {
-            console.error('Error editing conversation turn:', error);
-            new Notice('Error editing message. Please try again.');
-        }
-    }
-
     private clearCurrentNote() {
         if (!this.currentFile) return;
 
         this.fileManager.clearNoteData(this.currentFile);
+        this.conversationManager.cancelInference();
 
         // Create a new conversation manager to reset the conversation
         this.conversationManager = new ConversationManager(this.plugin.settings, this.app);

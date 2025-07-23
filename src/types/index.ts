@@ -8,7 +8,16 @@ export interface ToolCall {
     id: string;
     name: string;
     input: any;
+    is_server_call: boolean;
+    server_name?: string;
     result?: any;
+}
+
+export interface TurnChunk {
+    type: 'thinking' | 'content' | 'tool_call' | 'tool_call_result' | 'signature' | 'block' | 'done';
+    id: string | number;
+    content: string;
+    toolCall?: ToolCall;
 }
 
 export interface TurnStep {
@@ -16,6 +25,7 @@ export interface TurnStep {
     content?: string;
     toolCalls: Record<string, ToolCall>;
     signature?: string;
+    chunks?: TurnChunk[];
 }
 
 export interface ConversationTurn {
@@ -83,20 +93,21 @@ export interface LLMResponse {
     error?: string;
 }
 
-export type ChunkType = 'thinking' | 'content' | 'error' | 'done' | 'tool_call' | 'tool_call_result' | 'signature';
+export interface ToolCallResult {
+    id: string;
+    result: any;
+    is_server_call: boolean;
+}
+
+
+export type ChunkType = 'thinking' | 'content' | 'error' | 'done' | 'tool_call' | 'tool_call_result' | 'signature' | 'block';
 export interface LLMStreamChunk {
     type: ChunkType;
+    id: string | number;
     content: string;
     isComplete?: boolean;
-    toolCall?: {
-        name: string;
-        input: any;
-        id: string;
-    };
-    toolCallResult?: {
-        id: string;
-        result: any;
-    };
+    toolCall?: ToolCall;
+    toolCallResult?: ToolCallResult;
 }
 
 export interface ChatMessage {

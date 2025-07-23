@@ -1,4 +1,4 @@
-import { ConversationTurn, UserInput, TurnStep, ToolCall, LLMStreamChunk, NotesCriticSettings, LLMFile } from 'types';
+import { ConversationTurn, UserInput, TurnStep, ToolCall, LLMStreamChunk, NotesCriticSettings, LLMFile, TurnChunk } from 'types';
 import { getFeedback } from 'feedback/feedbackProvider';
 import { App } from 'obsidian';
 
@@ -104,9 +104,8 @@ export class ConversationManager {
     }
 
     public async rerunConversationTurn(params: RerunTurnParams): Promise<ConversationTurn> {
-        this.validateNoRunningInference();
-
         const originalTurn = this.findAndRemoveTurnFromHistory(params.turnId);
+        await this.cancelInference();
 
         return this.newConversationRound({
             prompt: params.prompt ?? originalTurn.userInput.prompt,
@@ -147,6 +146,7 @@ export class ConversationManager {
             thinking: '',
             content: undefined,
             toolCalls: {},
+            chunks: []
         };
     }
 
@@ -198,8 +198,6 @@ export class ConversationManager {
         abortController: AbortController,
         overrideSettings: NotesCriticSettings | undefined
     ): Promise<TurnStep> {
-        let streamedThinking = '';
-        let streamedContent = '';
         const step = turn.steps[turn.steps.length - 1];
 
         for await (const chunk of getFeedback(this.conversation, overrideSettings || this.settings, this.app)) {
@@ -207,11 +205,7 @@ export class ConversationManager {
                 throw new Error(ABORT_ERROR_MESSAGE);
             }
 
-            this.processStreamChunk(chunk, step, callback, streamedThinking, streamedContent);
-
-            // Update accumulated content
-            if (chunk.type === 'thinking') streamedThinking += chunk.content;
-            if (chunk.type === 'content') streamedContent += chunk.content;
+            this.processStreamChunk(chunk, step, callback);
         }
 
         return step;
@@ -221,13 +215,30 @@ export class ConversationManager {
         chunk: LLMStreamChunk,
         step: TurnStep,
         callback: ConversationCallback | undefined,
-        streamedThinking: string,
-        streamedContent: string
     ): void {
+        let lastChunk = step.chunks?.[step.chunks.length - 1];
+
+        if (lastChunk?.type === 'tool_call' && chunk.type === 'tool_call_result') {
+            if (chunk.toolCallResult?.result) {
+                lastChunk.toolCall!.result = chunk.toolCallResult?.result;
+            }
+        } else if (lastChunk?.id !== chunk.id) {
+            lastChunk = {
+                type: chunk.type as TurnChunk['type'],
+                id: chunk.id,
+                content: chunk.content
+            }
+            step.chunks?.push(lastChunk);
+        } else if (chunk.isComplete) {
+            lastChunk.content = chunk.content;
+        } else {
+            lastChunk.content += chunk.content;
+        }
+
         switch (chunk.type) {
             case 'thinking':
-                step.thinking = streamedThinking + chunk.content;
-                callback?.({ type: 'thinking', content: chunk.content });
+                step.thinking = step.chunks?.filter(c => c.type === 'thinking').map(c => c.content).join('');
+                callback?.({ type: 'thinking', content: lastChunk.content });
                 break;
 
             case 'signature':
@@ -235,11 +246,12 @@ export class ConversationManager {
                 break;
 
             case 'content':
-                step.content = streamedContent + chunk.content;
-                callback?.({ type: 'content', content: chunk.content });
+                step.content = step.chunks?.filter(c => c.type === 'content').map(c => c.content).join('');
+                callback?.({ type: 'content', content: lastChunk.content });
                 break;
 
             case 'tool_call':
+                lastChunk.toolCall = chunk.toolCall;
                 this.processToolCall(chunk, step, callback);
                 break;
 
@@ -256,7 +268,9 @@ export class ConversationManager {
         const toolCall = {
             id: chunk.toolCall?.id || '',
             name: chunk.toolCall?.name || '',
-            input: chunk.toolCall?.input || {}
+            input: chunk.toolCall?.input || {},
+            is_server_call: false,
+            ...chunk.toolCall
         };
         step.toolCalls[toolCall.id] = toolCall;
         callback?.({ type: 'tool_call', toolCall });
@@ -272,12 +286,13 @@ export class ConversationManager {
 
         callback?.({
             type: 'tool_call_result',
-            toolCallResult: chunk.toolCallResult
+            toolCallResult: chunk.toolCallResult?.result
         });
     }
 
     private shouldContinueToNextStep(step: TurnStep, stepsLeft: number): boolean {
-        return Object.keys(step.toolCalls).length > 0 && stepsLeft > 0;
+        const toolCallsNeeded = Object.values(step.toolCalls).filter(tool => !tool.is_server_call);
+        return toolCallsNeeded.length > 0 && stepsLeft > 0;
     }
 
     private async processNextStep(

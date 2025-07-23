@@ -1,5 +1,7 @@
-import { ConversationTurn, UserInput, TurnStep } from '../../types';
-import { ChatInput } from './ChatInput';
+import { ConversationTurn, UserInput, TurnStep, TurnChunk } from 'types';
+import { ChatInput } from 'views/components/ChatInput';
+import { formatFileChangeContent, formatChatMessageContent, formatManualFeedbackContent, formatJson } from 'views/formatters';
+
 
 const CSS_CLASSES = {
     messages: 'notes-critic-messages',
@@ -11,19 +13,12 @@ const CSS_CLASSES = {
     responseContent: 'notes-critic-response-content',
     thinkingContent: 'notes-critic-thinking-content',
     toolCallContent: 'notes-critic-tool-call-content',
+    signatureContent: 'notes-critic-signature-content',
+    blockContent: 'notes-critic-block-content',
     timestamp: 'notes-critic-timestamp',
     rerunButton: 'notes-critic-rerun-button',
 } as const;
 
-const DIFF_CLASSES = {
-    container: 'diff-container',
-    hunk: 'diff-hunk',
-    header: 'diff-header',
-    added: 'diff-added',
-    removed: 'diff-removed',
-    meta: 'diff-meta',
-    context: 'diff-context',
-} as const;
 
 const STREAMING_INDICATORS = {
     cursor: '<span class="streaming-cursor">▋</span>',
@@ -39,15 +34,14 @@ interface StreamingState {
     hasContent: boolean;
 }
 
+
 export class FeedbackDisplay {
     private container: HTMLElement;
-    private onRerunCallback?: (turn: ConversationTurn) => void;
-    private onEditCallback?: (turn: ConversationTurn, newMessage: string) => void;
+    private onRerunCallback?: (turn: ConversationTurn, newMessage?: string) => void;
 
-    constructor(parent: Element, onRerun?: (turn: ConversationTurn) => void, onEdit?: (turn: ConversationTurn, newMessage: string) => void) {
+    constructor(parent: Element, onRerun?: (turn: ConversationTurn, newMessage?: string) => void) {
         this.container = this.createElement(parent, 'div', CSS_CLASSES.messages);
         this.onRerunCallback = onRerun;
-        this.onEditCallback = onEdit;
     }
 
     // Public API
@@ -158,14 +152,10 @@ export class FeedbackDisplay {
         const contentEl = this.createElement(parent, 'div', CSS_CLASSES.userInputContent);
 
         const content = this.formatUserInputContent(userInput);
-        if (content.isHtml) {
-            contentEl.innerHTML = content.text;
-        } else {
-            contentEl.textContent = content.text;
-        }
+        contentEl.innerHTML = content;
 
         // Make chat messages editable
-        if (userInput.type === 'chat_message' && this.onEditCallback) {
+        if (userInput.type === 'chat_message' && this.onRerunCallback) {
             contentEl.classList.add('notes-critic-editable');
             contentEl.title = 'Click to edit';
             contentEl.addEventListener('click', () => this.startEditingMessage(contentEl, turn));
@@ -174,81 +164,37 @@ export class FeedbackDisplay {
 
     private startEditingMessage(contentEl: HTMLElement, turn: ConversationTurn): void {
         const currentText = turn.userInput.type === 'chat_message' ? turn.userInput.message : '';
-        if (contentEl.children.length > 0) {
+        if (Array.from(contentEl.children).filter(el => el.tagName !== 'BR').length > 0) {
             return;
         }
+
+        // Store original content to restore on cancel
+        const originalContent = contentEl.innerHTML;
+
         contentEl.innerHTML = '';
         const input = new ChatInput(contentEl, {
             initialValue: currentText,
+            showContainer: false,
             onSend: async (message: string) => {
-                this.onEditCallback?.(turn, message);
+                this.onRerunCallback?.(turn, message);
                 return Promise.resolve();
+            },
+            onCancel: () => {
+                // Clean up the input and restore original content
+                input.destroy();
+                contentEl.innerHTML = originalContent;
             }
         });
     }
 
-    private formatUserInputContent(userInput: UserInput): { text: string; isHtml: boolean } {
+    private formatUserInputContent(userInput: UserInput): string {
         const formatters = {
-            file_change: () => {
-                const input = userInput as Extract<UserInput, { type: 'file_change' }>;
-                return {
-                    text: `<strong>File changes: ${input.filename}</strong><br>${this.formatDiff(input.diff)}`,
-                    isHtml: true
-                };
-            },
-            chat_message: () => {
-                const input = userInput as Extract<UserInput, { type: 'chat_message' }>;
-                return {
-                    text: input.message.replace(/\n/g, '<br>'),
-                    isHtml: true
-                };
-            },
-            manual_feedback: () => {
-                const input = userInput as Extract<UserInput, { type: 'manual_feedback' }>;
-                return {
-                    text: `<strong>Manual feedback: ${input.filename}</strong><br>${this.truncateText(input.content, 200)}`,
-                    isHtml: true
-                };
-            }
+            file_change: formatFileChangeContent,
+            chat_message: formatChatMessageContent,
+            manual_feedback: formatManualFeedbackContent,
         };
 
-        return formatters[userInput.type]?.() || { text: '', isHtml: false };
-    }
-
-    private truncateText(text: string, maxLength: number): string {
-        return text.length > maxLength ? text.substring(0, maxLength) + '...' : text;
-    }
-
-    private formatDiff(diff: string): string {
-        if (!diff) return '';
-
-        const lineFormatters = [
-            { prefix: '@@', class: DIFF_CLASSES.hunk },
-            { prefix: ['+++', '---'], class: DIFF_CLASSES.header },
-            { prefix: '+', class: DIFF_CLASSES.added },
-            { prefix: '-', class: DIFF_CLASSES.removed },
-            { prefix: '\\', class: DIFF_CLASSES.meta },
-        ];
-
-        const formatLine = (line: string): string => {
-            const formatter = lineFormatters.find(f =>
-                Array.isArray(f.prefix)
-                    ? f.prefix.some(p => line.startsWith(p))
-                    : line.startsWith(f.prefix)
-            );
-
-            const className = formatter?.class || DIFF_CLASSES.context;
-            return `<span class="${className}">${this.escapeHtml(line)}</span>`;
-        };
-
-        const formattedLines = diff.split('\n').map(formatLine);
-        return `<div class="${DIFF_CLASSES.container}">${formattedLines.join('<br>')}</div>`;
-    }
-
-    private escapeHtml(text: string): string {
-        const div = document.createElement('div');
-        div.textContent = text;
-        return div.innerHTML;
+        return formatters[userInput.type](userInput) || '';
     }
 
     // ==================== AI RESPONSE RENDERING ====================
@@ -312,17 +258,118 @@ export class FeedbackDisplay {
         const stepEl = document.createElement('div');
         stepEl.classList.add(CSS_CLASSES.stepContainer);
 
-        if (step.thinking) {
-            this.createThinkingSection(stepEl, step, streamingState);
+        // Render chunks if available
+        if (step.chunks && step.chunks.length > 0) {
+            this.renderChunks(stepEl, step, streamingState);
+        } else if (streamingState.isStreaming) {
+            // Show processing indicator when streaming but no chunks yet
+            this.createProcessingIndicator(stepEl, 'Processing');
         }
-
-        if (Object.keys(step.toolCalls).length > 0) {
-            this.createToolCallsSections(stepEl, step, streamingState);
-        }
-
-        this.createResponseContent(stepEl, step, streamingState);
 
         return stepEl;
+    }
+
+    private renderChunks(stepEl: HTMLElement, step: TurnStep, streamingState: StreamingState): void {
+        step.chunks!.forEach((chunk, index) => {
+            const isLastChunk = index === step.chunks!.length - 1;
+            const shouldShowCursor = streamingState.isStreaming && isLastChunk;
+
+            this.renderChunk(stepEl, chunk, shouldShowCursor);
+        });
+    }
+
+    private renderChunk(container: HTMLElement, chunk: TurnChunk, shouldShowCursor: boolean): void {
+        switch (chunk.type) {
+            case 'thinking':
+                this.renderThinkingChunk(container, chunk, shouldShowCursor);
+                break;
+            case 'content':
+                this.renderContentChunk(container, chunk, shouldShowCursor);
+                break;
+            case 'tool_call':
+            case 'tool_call_result':
+                this.renderToolCallChunk(container, chunk);
+                break;
+            case 'signature':
+                this.renderSignatureChunk(container, chunk, shouldShowCursor);
+                break;
+            case 'block':
+                this.renderBlockChunk(container, chunk, shouldShowCursor);
+                break;
+            case 'done':
+                break;
+            default:
+                console.warn('Unknown chunk type:', chunk.type);
+        }
+    }
+
+    private renderThinkingChunk(container: HTMLElement, chunk: TurnChunk, shouldShowCursor: boolean): void {
+        // Look for existing thinking section to append to, or create new one
+        const thinkingSection = this.createDetailsSection(container, 'Thinking');
+        const thinkingContent = this.createElement(thinkingSection, 'div', CSS_CLASSES.thinkingContent);
+
+        let displayContent = chunk.content || '';
+        if (shouldShowCursor) {
+            displayContent += STREAMING_INDICATORS.cursor;
+        }
+
+        thinkingContent.innerHTML = displayContent.replace(/\n/g, '<br/>');
+    }
+
+    private renderContentChunk(container: HTMLElement, chunk: TurnChunk, shouldShowCursor: boolean): void {
+        // Look for existing content element to append to, or create new one
+        const contentEl = this.createElement(container, 'div', CSS_CLASSES.responseContent);
+
+        let displayContent = chunk.content || '';
+        if (shouldShowCursor) {
+            displayContent += STREAMING_INDICATORS.cursor;
+        }
+
+        contentEl.innerHTML = displayContent.replace(/\n/g, '<br>');
+    }
+
+    private renderToolCallChunk(container: HTMLElement, chunk: TurnChunk): void {
+        if (!chunk.toolCall) return;
+
+        const toolCall = chunk.toolCall;
+        const calling = chunk.toolCall.result ? toolCall.name : ` calling ${toolCall.name} ${STREAMING_INDICATORS.dots}${STREAMING_INDICATORS.dotsEnd}`;
+        const toolSection = this.createDetailsSection(container, calling);
+        const toolContent = this.createElement(toolSection, 'div', CSS_CLASSES.toolCallContent);
+
+        const inputJson = formatJson(toolCall.input);
+        toolContent.innerHTML = `<div><strong>Input:</strong><br><code>${inputJson}</code></div>`;
+        if (chunk.toolCall.result) {
+            const resultJson = formatJson(chunk.toolCall.result);
+            toolContent.innerHTML += `<div><strong>Result:</strong><br><code>${resultJson}</code></div>`;
+        }
+    }
+
+    private renderSignatureChunk(container: HTMLElement, chunk: any, shouldShowCursor: boolean): void {
+        const signatureEl = this.createElement(container, 'div', CSS_CLASSES.signatureContent);
+        signatureEl.style.fontStyle = 'italic';
+        signatureEl.style.color = 'var(--text-muted)';
+
+        let displayContent = `Signature: ${chunk.content || ''}`;
+        if (shouldShowCursor) {
+            displayContent += STREAMING_INDICATORS.cursor;
+        }
+
+        signatureEl.innerHTML = displayContent;
+    }
+
+    private renderBlockChunk(container: HTMLElement, chunk: any, shouldShowCursor: boolean): void {
+        const blockEl = this.createElement(container, 'div', CSS_CLASSES.blockContent);
+        blockEl.style.border = '1px solid var(--background-modifier-border)';
+        blockEl.style.padding = '8px';
+        blockEl.style.marginBottom = '8px';
+        blockEl.style.borderRadius = '4px';
+
+        let displayContent = chunk.content || '';
+        if (shouldShowCursor) {
+            displayContent += STREAMING_INDICATORS.cursor;
+        }
+
+        blockEl.innerHTML = displayContent.replace(/\n/g, '<br>');
     }
 
     private getStreamingState(step: TurnStep, index: number, totalSteps: number, isStreaming: boolean): StreamingState {
@@ -335,129 +382,11 @@ export class FeedbackDisplay {
         };
     }
 
-    // ==================== THINKING SECTION ====================
-
-    private createThinkingSection(container: HTMLElement, step: TurnStep, streamingState: StreamingState): void {
-        const thinkingSection = this.createDetailsSection(container, 'Thinking');
-        const thinkingContent = this.createElement(thinkingSection, 'div', CSS_CLASSES.thinkingContent);
-
-        this.updateThinkingContent(thinkingSection, thinkingContent, step, streamingState);
-    }
-
-    private updateThinkingContent(
-        thinkingSection: HTMLDetailsElement,
-        thinkingContent: HTMLElement,
-        step: TurnStep,
-        streamingState: StreamingState
-    ): void {
-        const summary = thinkingSection.querySelector('summary')!;
-        let displayThinking = step.thinking || '';
-
-        if (streamingState.isStreaming && !streamingState.hasContent && !streamingState.hasToolCalls) {
-            summary.innerHTML = `Thinking${STREAMING_INDICATORS.dots}${STREAMING_INDICATORS.dotsEnd}`;
-            displayThinking += STREAMING_INDICATORS.cursor;
-        } else {
-            summary.textContent = 'Thinking';
-        }
-
-        thinkingContent.innerHTML = displayThinking.replace(/\n/g, '<br>');
-    }
-
-    // ==================== TOOL CALLS SECTION ====================
-
-    private createToolCallsSections(container: HTMLElement, step: TurnStep, streamingState: StreamingState): void {
-        this.removeExistingToolSections(container);
-
-        Object.values(step.toolCalls).forEach(toolCall => {
-            this.createToolCallSection(container, toolCall, streamingState);
-        });
-    }
-
-    private createToolCallSection(container: HTMLElement, toolCall: any, streamingState: StreamingState): void {
-        const toolSection = this.createDetailsSection(container, toolCall.name);
-        const toolContent = this.createElement(toolSection, 'div', CSS_CLASSES.toolCallContent);
-
-        this.populateToolContent(toolContent, toolCall, streamingState);
-    }
-
-    private populateToolContent(toolContent: HTMLElement, toolCall: any, streamingState: StreamingState): void {
-        const sections = [];
-
-        if (toolCall.input) {
-            const inputJson = this.formatJson(toolCall.input);
-            sections.push(`<div><strong>Input:</strong><br><code>${inputJson}</code></div>`);
-        }
-
-        if (toolCall.result) {
-            const resultJson = this.formatJson(toolCall.result);
-            sections.push(`<div><strong>Result:</strong><br><code>${resultJson}</code></div>`);
-        } else if (streamingState.isStreaming) {
-            sections.push(`<div>${STREAMING_INDICATORS.dots}Running tool${STREAMING_INDICATORS.dotsEnd}</div>`);
-        }
-
-        toolContent.innerHTML = sections.join('');
-    }
-
-    private formatJson(obj: any): string {
-        return JSON.stringify(obj, null, 2).replace(/\n/g, '<br>');
-    }
-
-    private removeExistingToolSections(container: HTMLElement): void {
-        const existingToolSections = container.querySelectorAll(`.${CSS_CLASSES.detailsSection}`);
-        existingToolSections.forEach(section => {
-            if (section.querySelector(`.${CSS_CLASSES.toolCallContent}`)) {
-                section.remove();
-            }
-        });
-    }
-
-    // Response content
-    private createResponseContent(container: HTMLElement, step: TurnStep, streamingState: StreamingState): void {
-        const responseContentEl = this.createElement(container, 'div', CSS_CLASSES.responseContent);
-        this.updateResponseContent(responseContentEl, step, streamingState);
-    }
-
-    private updateResponseContent(responseContentEl: HTMLElement, step: TurnStep, streamingState: StreamingState): void {
-        if (step.content) {
-            this.renderStepContent(responseContentEl, step.content, streamingState);
-        } else if (streamingState.isStreaming) {
-            this.renderProcessingState(responseContentEl, step, streamingState);
-        } else {
-            responseContentEl.innerHTML = '';
-        }
-    }
-
-    private renderStepContent(responseContentEl: HTMLElement, content: string, streamingState: StreamingState): void {
-        let displayContent = content.replace(/\n/g, '<br>');
-        if (streamingState.isStreaming) {
-            displayContent += STREAMING_INDICATORS.cursor;
-        }
-        responseContentEl.innerHTML = displayContent;
-    }
-
-    private renderProcessingState(responseContentEl: HTMLElement, step: TurnStep, streamingState: StreamingState): void {
-        if (streamingState.hasThinking && !streamingState.hasContent) {
-            responseContentEl.innerHTML = '';
-            return;
-        }
-
-        const message = streamingState.hasToolCalls
-            ? this.getToolProcessingMessage(step)
-            : 'Processing';
-
-        responseContentEl.innerHTML = `${STREAMING_INDICATORS.dots}${message}${STREAMING_INDICATORS.dotsEnd}`;
-    }
-
-    private getToolProcessingMessage(step: TurnStep): string {
-        const runningTools = Object.values(step.toolCalls).filter((tool: any) => !tool.result);
-        return runningTools.length > 0 ? 'Running tools' : 'Processing tool results';
-    }
-
     // ==================== UTILITY METHODS ====================
 
     private createDetailsSection(parent: HTMLElement, title: string): HTMLDetailsElement {
         const detailsSection = this.createElement(parent, 'details', CSS_CLASSES.detailsSection) as HTMLDetailsElement;
-        this.createElement(detailsSection, 'summary', undefined, { textContent: title });
+        this.createElement(detailsSection, 'summary', undefined, { innerHTML: title });
         return detailsSection;
     }
 

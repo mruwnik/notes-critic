@@ -1,22 +1,33 @@
-import { LLMStreamChunk, NotesCriticSettings, ConversationTurn, LLMFile, ChunkType } from 'types';
-import { Notice, requestUrl, App } from 'obsidian';
+import { LLMStreamChunk, NotesCriticSettings, ConversationTurn, LLMFile, ChunkType, ToolCallResult, ToolCall } from 'types';
+import { requestUrl, App } from 'obsidian';
 import { MCPClient, Tool } from 'llm/mcpClient';
 import { streamFromEndpoint, HttpConfig } from 'llm/streaming';
 import { ObsidianFileProcessor } from 'llm/fileUtils';
 import { ObsidianTextEditorTool, TextEditorCommand, textEditorToolDefinition } from 'llm/tools';
+
+interface ToolCallDelta {
+    index: number;
+    content: string;
+}
+
+interface BlockStart {
+    index: number;
+    type: ChunkType;
+}
 
 interface StreamParseResult {
     content?: string;
     isComplete?: boolean;
     error?: string;
     isThinking?: boolean;
-    toolCall?: any;
-    toolCallStart?: any;
-    toolCallDelta?: any;
-    toolCallComplete?: any;
+    toolCall?: ToolCall;
+    toolCallDelta?: ToolCallDelta;
+    toolCallResult?: ToolCallResult;
     signature?: any;
-    blockStart?: any;
-    blockComplete?: any;
+    blockStart?: BlockStart;
+    blockComplete?: {
+        index: number;
+    };
 }
 
 interface ProviderConfig {
@@ -50,7 +61,6 @@ abstract class BaseLLMProvider {
                 tools
             );
 
-            console.log("config", config)
             const response = this.streamResponse(config);
             let fullResponse = '';
 
@@ -61,7 +71,7 @@ abstract class BaseLLMProvider {
                 yield chunk;
             }
         } catch (error) {
-            yield { type: 'error', content: error.message };
+            yield { type: 'error', content: error.message, id: 'error' };
         }
     }
 
@@ -184,53 +194,67 @@ abstract class BaseLLMProvider {
             };
 
             // Track tool calls in progress
-            const toolCalls = new Map<number, { id: string; name: string; input: any; partialJson: string }>();
-            let currentBlock = null
-            let currentBlockType = ''
+            const toolCalls = new Map<number, ToolCall & { input: string }>();
+            let currentBlock = { index: -1 }
+            let currentBlockType: ChunkType | null = null
+            let blockContent = ''
+            let lastTool = undefined
 
             // Use generic streaming function and parse each JSON object
             for await (const jsonObj of streamFromEndpoint(httpConfig)) {
                 const result = config.parseObject(jsonObj);
 
                 if (result.error) {
-                    yield { type: 'error', content: result.error };
+                    yield { type: 'error', content: result.error, id: currentBlock.index };
                     return;
                 }
 
                 if (result.blockStart) {
                     currentBlock = result.blockStart;
-                    currentBlockType = result.blockStart.type;
+                    blockContent = ''
                 }
 
                 if (result.signature) {
-                    yield { type: "signature", content: result.signature };
+                    yield { type: "signature", content: result.signature, id: currentBlock.index };
                 }
 
                 // Handle tool call streaming
-                if (result.toolCallStart) {
-                    const { index, id, name, input } = result.toolCallStart;
-                    toolCalls.set(index, { id, name, input, partialJson: '' });
+                if (result.toolCall) {
+                    currentBlockType = 'tool_call'
+                    toolCalls.set(currentBlock.index, { ...result.toolCall, input: '' });
+                    lastTool = result.toolCall
+                    yield {
+                        type: "tool_call", content: '', toolCall: result.toolCall, id: currentBlock.index
+                    };
+                }
+
+                if (result.toolCallResult) {
+                    currentBlockType = 'tool_call_result'
+                    const tool = toolCalls.get(currentBlock.index) || lastTool
+                    if (tool) {
+                        yield {
+                            type: "tool_call_result", content: '', toolCallResult: result.toolCallResult, id: currentBlock.index
+                        };
+                    }
                 }
 
                 if (result.toolCallDelta) {
-                    const { index, partial_json } = result.toolCallDelta;
+                    const { index, content } = result.toolCallDelta;
                     const toolCall = toolCalls.get(index);
                     if (toolCall) {
-                        toolCall.partialJson += partial_json;
+                        toolCall.input += content;
                     }
                 }
 
                 if (result.blockComplete) {
-                    currentBlock = null;
-                    currentBlockType = '';
                     const { index } = result.blockComplete;
                     const toolCall = toolCalls.get(index);
                     if (toolCall) {
                         try {
                             // Parse the accumulated JSON - use the input if partialJson is empty
                             let parsedInput;
-                            if (toolCall.partialJson) {
-                                parsedInput = JSON.parse(toolCall.partialJson);
+                            if (toolCall.input) {
+                                parsedInput = JSON.parse(toolCall.input);
                             } else {
                                 parsedInput = toolCall.input;
                             }
@@ -238,36 +262,42 @@ abstract class BaseLLMProvider {
                             // Yield the tool call for execution by higher-level code
                             yield {
                                 type: 'tool_call',
-                                content: '',
-                                toolCall: {
-                                    name: toolCall.name,
-                                    input: parsedInput,
-                                    id: toolCall.id
-                                }
+                                content: toolCall.input,
+                                toolCall: { ...toolCall, input: parsedInput },
+                                isComplete: true,
+                                id: currentBlock.index
                             };
                         } catch (error) {
-                            yield { type: 'error', content: `Failed to parse tool call: ${error.message}` };
+                            yield { type: 'error', content: `Failed to parse tool call: ${error.message}`, id: currentBlock.index };
                         }
                         toolCalls.delete(index);
+                    } else if (currentBlockType) {
+                        yield { type: currentBlockType, content: blockContent, isComplete: true, id: currentBlock.index };
                     }
+
+                    currentBlock = { index: -1 };
+                    currentBlockType = null
+                    blockContent = ''
                 }
 
                 if (result.content) {
-                    const chunkType = result.isThinking ? 'thinking' : 'content';
-                    yield { type: chunkType, content: result.content };
+                    currentBlockType = result.isThinking ? 'thinking' : 'content';
+                    yield { type: currentBlockType, content: result.content, id: currentBlock.index };
+                    blockContent += result.content
                 }
 
                 if (result.isComplete) {
-                    yield { type: 'done', content: '' };
+                    yield { type: 'done', content: '', id: currentBlock.index };
                     return;
                 }
             }
 
-            yield { type: 'done', content: '' };
+            yield { type: 'done', content: '', id: currentBlock.index };
         } catch (error) {
             yield {
                 type: 'error',
-                content: `Request failed: ${error.message}`
+                content: `Request failed: ${error.message}`,
+                id: 'error'
             };
         }
     }
@@ -412,18 +442,18 @@ class OpenAIProvider extends BaseLLMProvider {
             ]
         }
         const steps = message.steps.map(step => {
-            return Object.values(step.toolCalls).map(toolCall => ([
+            return Object.values(step.toolCalls).filter(toolCall => toolCall.id.startsWith('fc_')).map(toolCall => ([
                 {
                     type: "function_call",
                     id: toolCall.id,
                     call_id: toolCall.id,
                     name: toolCall.name,
-                    arguments: toolCall.input
+                    arguments: typeof toolCall.input === 'string' ? toolCall.input : JSON.stringify(toolCall.input)
                 },
                 {
                     type: "function_call_output",
                     call_id: toolCall.id,
-                    output: toolCall.result
+                    output: typeof toolCall.result === 'string' ? toolCall.result : JSON.stringify(toolCall.result)
                 }
             ]))
         }).flat()
@@ -436,8 +466,62 @@ class OpenAIProvider extends BaseLLMProvider {
 
     protected createObjectParser(): (obj: any) => StreamParseResult {
         return (obj: any): StreamParseResult => {
+            if (obj.type === "response.output_item.added") {
+                if (["function_call", "mcp_call"].includes(obj.item?.type)) {
+                    return {
+                        blockStart: {
+                            index: obj.output_index,
+                            type: 'tool_call'
+                        },
+                        toolCall: {
+                            id: obj.item.call_id,
+                            name: obj.item.name,
+                            input: '',
+                            is_server_call: obj.item.type === "mcp_call"
+                        }
+                    }
+                }
+                if (obj.part?.type === "output_text") {
+                    return {
+                        blockStart: {
+                            index: obj.output_index,
+                            type: 'content'
+                        },
+                    }
+                }
+            }
+            if (['response.function_call_arguments.delta', 'response.mcp_call_arguments.delta'].includes(obj.type)) {
+                return {
+                    toolCallDelta: {
+                        index: obj.output_index,
+                        content: obj.delta
+                    }
+                }
+            }
             if (obj.type === "response.output_text.delta") {
                 return { content: obj.delta, isThinking: false };
+            }
+            if (['response.output_item.done', 'response.mcp_call.done', 'response.function_call.done'].includes(obj.type)) {
+                const res: StreamParseResult = {
+                    blockComplete: {
+                        index: obj.output_index
+                    }
+                }
+                if (obj.item?.type === "mcp_call") {
+                    res.toolCallResult = {
+                        id: obj.item.id,
+                        result: obj.item.output,
+                        is_server_call: true
+                    }
+                }
+                return res;
+            }
+            if (obj.type === "response.output_text.done") {
+                return {
+                    blockComplete: {
+                        index: obj.output_index
+                    }
+                }
             }
             // Handle completion marker
             if (obj.choices?.[0]?.finish_reason) {
@@ -482,21 +566,45 @@ class OpenAIProvider extends BaseLLMProvider {
 
 // Anthropic provider implementation
 class AnthropicProvider extends BaseLLMProvider {
-    protected createConfig(messages: ConversationTurn[], systemPrompt: string, thinking: boolean, tools: Tool[]): ProviderConfig {
-        this.validateApiKey();
-        const formattedMessages = this.formatMessages(messages);
-        const wrappedMessages = this.wrapMessages(formattedMessages);
+    protected getDefaultTools(model: string): Record<string, any>[] {
+        const no_search = [
+            'claude-3-5-sonnet-latest',
+            'claude-3-5-haiku-latest'
+        ]
+        const no_editor = [
+            'claude-3-7-sonnet-latest',
+            'claude-3-5-sonnet-latest',
+            'claude-3-5-haiku-latest'
+        ]
 
-        const defaultTools = [{
+        const webSearchTool = {
             type: "web_search_20250305",
             name: "web_search",
             max_uses: 5
-        }, {
+        }
+        const textEditorTool = {
             type: "text_editor_20250429",
             name: "str_replace_based_edit_tool"
-        }]
-        const extras: any = {}
-        if (tools && tools.length > 0) {
+        }
+
+        if (no_search.includes(model)) {
+            return []
+        }
+        if (no_editor.includes(model)) {
+            return [webSearchTool]
+        }
+
+        return [webSearchTool, textEditorTool]
+    }
+
+    protected supportsMCP(model: string): boolean {
+        return !model.includes('claude-3')
+    }
+
+    protected getTools(config: Record<string, any>, tools: Tool[]): Record<string, any> {
+        const model = this.getModel()
+        const extras: any = { tools: this.getDefaultTools(model) }
+        if (tools && tools.length > 0 && this.supportsMCP(model)) {
             extras.mcp_servers = [
                 {
                     name: this.mcpClient.getName(),
@@ -506,6 +614,15 @@ class AnthropicProvider extends BaseLLMProvider {
                 }
             ]
         }
+        return { ...config, ...extras, }
+    }
+
+    protected createConfig(messages: ConversationTurn[], systemPrompt: string, thinking: boolean, tools: Tool[]): ProviderConfig {
+        this.validateApiKey();
+        const formattedMessages = this.formatMessages(messages);
+        const wrappedMessages = this.wrapMessages(formattedMessages);
+
+        const extras = this.getTools({}, tools)
         if (thinking && this.settings.thinkingBudgetTokens > 1024) {
             extras.thinking = {
                 type: 'enabled',
@@ -528,7 +645,6 @@ class AnthropicProvider extends BaseLLMProvider {
                 messages: wrappedMessages.messages,
                 system: systemPrompt,
                 ...extras,
-                tools: defaultTools,
                 stream: true,
             },
             parseObject: this.createObjectParser()
@@ -537,6 +653,9 @@ class AnthropicProvider extends BaseLLMProvider {
 
     protected createObjectParser(): (obj: any) => StreamParseResult {
         return (obj: any): StreamParseResult => {
+            if (obj.type === 'error') {
+                return { error: obj.error }
+            }
             if (obj.type === 'content_block_delta') {
                 if (obj?.delta?.thinking) {
                     return { content: obj.delta.thinking, isThinking: true };
@@ -546,7 +665,7 @@ class AnthropicProvider extends BaseLLMProvider {
                     return {
                         toolCallDelta: {
                             index: obj.index,
-                            partial_json: obj.delta.partial_json
+                            content: obj.delta.partial_json
                         }
                     };
                 }
@@ -560,50 +679,34 @@ class AnthropicProvider extends BaseLLMProvider {
                     return { content, isThinking: false };
                 }
             } else if (obj.type === 'content_block_start') {
-                if (obj.content_block?.type === 'mcp_tool_use') {
+                if (["tool_use", 'mcp_tool_use', "server_tool_use"].includes(obj.content_block?.type)) {
                     return {
                         toolCall: {
-                            name: obj.content_block.tool_name,
-                            input: obj.content_block.input,
-                            id: obj.content_block.id,
-                        },
-                        blockStart: {
-                            index: obj.index,
-                            type: obj.content_block.type
-                        }
-                    };
-                }
-                if (obj.content_block?.type === 'mcp_tool_result') {
-                    return {
-                        toolCall: {
-                            id: obj.content_block.id,
-                            content: obj.content_block.content,
-                        },
-                        blockStart: {
-                            index: obj.index,
-                            type: obj.content_block.type
-                        }
-                    };
-                }
-                // Handle text editor tool start
-                if (obj.content_block?.type === 'tool_use' && obj.content_block?.name === 'str_replace_based_edit_tool') {
-                    return {
-                        toolCallStart: {
-                            index: obj.index,
-                            id: obj.content_block.id,
                             name: obj.content_block.name,
-                            input: obj.content_block.input
+                            input: obj.content_block.input,
+                            server_name: obj.content_block.server_name,
+                            id: obj.content_block.id,
+                            is_server_call: obj.content_block.type !== "tool_use"
                         },
                         blockStart: {
                             index: obj.index,
                             type: obj.content_block.type
                         }
+                    };
+                }
+                if (obj.content_block?.tool_use_id) {
+                    return {
+                        toolCallResult: {
+                            id: obj.content_block.tool_use_id,
+                            result: obj.content_block.content,
+                            is_server_call: true
+                        },
                     };
                 }
                 return {
                     blockStart: {
                         index: obj.index,
-                        type: obj.content_block.type
+                        type: 'content'
                     }
                 }
             } else if (obj.type === 'content_block_stop') {
@@ -725,7 +828,7 @@ class AnthropicProvider extends BaseLLMProvider {
                             type: "tool_use",
                             id: toolCall.id,
                             name: toolCall.name,
-                            input: toolCall.input
+                            input: toolCall.input || {}
                         }))
                     ].filter(Boolean)
                 },
@@ -788,13 +891,15 @@ export class LLMProvider {
     async *callLLM(messages: ConversationTurn[], systemPrompt?: string): AsyncGenerator<LLMStreamChunk, void, unknown> {
         for await (const chunk of this.provider.callLLM(messages, systemPrompt)) {
             yield chunk;
-            if (chunk.type === 'tool_call' && chunk.toolCall) {
+            if (chunk.type === 'tool_call' && chunk.isComplete && chunk.toolCall && !chunk.toolCall.is_server_call) {
                 yield {
                     type: 'tool_call_result',
                     content: '',
+                    id: chunk.toolCall.id,
                     toolCallResult: {
                         id: chunk.toolCall.id,
-                        result: await this.runToolCall(chunk)
+                        result: await this.runToolCall(chunk),
+                        is_server_call: false
                     }
                 };
             }

@@ -70,13 +70,26 @@ export class ChatInput {
         this.sendButton.addEventListener('click', async () => {
             await this.handleSend();
         });
+
+        // Auto-resize textarea
+        this.textArea.addEventListener('input', () => {
+            this.autoResize();
+        });
     }
 
     private async handleSend(): Promise<void> {
         const message = this.textArea.value.trim();
         if (message) {
             this.clearInput();
-            await this.options.onSend(message);
+            this.setDisabled(true);
+            try {
+                await this.options.onSend(message);
+            } catch (error) {
+                // Re-enable after error
+                console.error('Send error:', error);
+            } finally {
+                this.setDisabled(false);
+            }
         }
     }
 
@@ -84,8 +97,20 @@ export class ChatInput {
         this.textArea.value = '';
     }
 
+    private autoResize(): void {
+        this.textArea.style.height = 'auto';
+        this.textArea.style.height = Math.max(this.textArea.scrollHeight, 20) + 'px';
+    }
+
     getValue(): string {
         return this.textArea.value;
+    }
+
+    setValue(value: string): void {
+        this.textArea.value = value || '';
+        // Trigger auto-resize
+        const event = new Event('input', { bubbles: true });
+        this.textArea.dispatchEvent(event);
     }
 
     focus(): void {
@@ -94,6 +119,16 @@ export class ChatInput {
 
     select(): void {
         this.textArea.select();
+    }
+
+    setDisabled(disabled: boolean): void {
+        this.textArea.disabled = disabled;
+        this.sendButton.disabled = disabled;
+    }
+
+    clear(): void {
+        this.textArea.value = '';
+        this.textArea.style.height = 'auto';
     }
 
     destroy(): void {
