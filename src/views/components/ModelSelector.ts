@@ -33,13 +33,39 @@ export class ModelSelector {
     private container: HTMLElement;
     private plugin: Plugin & { settings: NotesCriticSettings; saveSettings(): Promise<void> };
     private setting: Setting;
+    private title: string;
+    private desc: string;
+    private modelKind: 'model' | 'summarizer';
 
     constructor(
         parent: Element,
-        plugin: Plugin & { settings: NotesCriticSettings; saveSettings(): Promise<void> }
+        plugin: Plugin & { settings: NotesCriticSettings; saveSettings(): Promise<void> },
+        title: string = "Model",
+        desc: string = "AI model for feedback",
+        modelKind: 'model' | 'summarizer' = 'model'
     ) {
         this.plugin = plugin;
+        this.title = title;
+        this.desc = desc;
+        this.modelKind = modelKind;
         this.container = this.createContainer(parent);
+    }
+
+    private getModelSetting(): keyof NotesCriticSettings {
+        switch (this.modelKind) {
+            case 'model':
+                return 'model';
+            case 'summarizer':
+                return 'summarizerModel';
+        }
+    }
+
+    private setModelSetting(value: string): void {
+        if (this.modelKind === 'model') {
+            this.plugin.settings.model = value;
+        } else {
+            this.plugin.settings.summarizerModel = value;
+        }
     }
 
     private createContainer(parent: Element): HTMLElement {
@@ -49,13 +75,13 @@ export class ModelSelector {
 
         // Create the setting using Obsidian's Setting class
         this.setting = new Setting(container)
-            .setName('Model')
-            .setDesc('AI model for feedback')
+            .setName(this.title)
+            .setDesc(this.desc)
             .addDropdown(dropdown => dropdown
                 .addOptions(MODEL_CHOICES)
-                .setValue(this.plugin.settings.model)
+                .setValue(this.plugin.settings[this.getModelSetting()] as string)
                 .onChange(async (value) => {
-                    this.plugin.settings.model = value;
+                    this.setModelSetting(value);
                     await this.plugin.saveSettings();
                 }));
 
@@ -72,7 +98,7 @@ export class ModelSelector {
     }
 
     getCurrentModel(): string {
-        return this.plugin.settings.model;
+        return this.plugin.settings[this.getModelSetting()] as string;
     }
 
     destroy(): void {

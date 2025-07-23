@@ -342,7 +342,8 @@ export class NotesCriticSettingsTab extends PluginSettingTab {
         });
 
         // Use the shared ModelSelector component
-        new ModelSelector(this.containerEl, this.plugin);
+        new ModelSelector(this.containerEl, this.plugin, 'Model', 'AI model for feedback', 'model');
+        new ModelSelector(this.containerEl, this.plugin, 'Summarizer Model', 'AI model for summarizing conversations', 'summarizer');
 
         // API Keys
         this.createSectionHeader('API Keys');
@@ -428,6 +429,14 @@ export class NotesCriticSettingsTab extends PluginSettingTab {
                 const tokens = parseInt(value);
                 return (!isNaN(tokens) && tokens > 0) ? tokens : undefined;
             }
+        });
+
+        this.createSectionHeader('Logging');
+        this.createTextSetting({
+            name: 'Log Path',
+            desc: 'Path to the directory where logs will be saved',
+            placeholder: '.notes-critic/conversations',
+            field: 'logPath'
         });
 
         // Rules Management Section

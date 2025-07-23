@@ -946,18 +946,15 @@ export class LLMProvider {
         this.provider = this.createProvider(settings, app);
     }
 
-    static getProvider(provider: 'anthropic' | 'openai'): typeof BaseLLMProvider {
+    static async testApiKey(apiKey: string, provider: 'anthropic' | 'openai', app: App): Promise<boolean> {
         switch (provider) {
             case 'openai':
-                return OpenAIProvider;
+                return await OpenAIProvider.testApiKey(apiKey, app);
             case 'anthropic':
-                return AnthropicProvider;
+                return await AnthropicProvider.testApiKey(apiKey, app);
+            default:
+                throw new Error(`Unsupported LLM provider: ${provider}`);
         }
-    }
-
-    static async testApiKey(apiKey: string, provider: 'anthropic' | 'openai', app: App): Promise<boolean> {
-        const Provider = this.getProvider(provider);
-        return await Provider.testApiKey(apiKey, app);
     }
 
     public async makeTitle(conversation: ConversationTurn[]): Promise<string> {

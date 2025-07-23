@@ -1,5 +1,4 @@
-import { ConversationTurn, UserInput, TurnStep, ToolCall, LLMStreamChunk, NotesCriticSettings, LLMFile, TurnChunk } from 'types';
-import { getFeedback } from 'diffs';
+import { ConversationTurn, UserInput, TurnStep, LLMStreamChunk, NotesCriticSettings, LLMFile, TurnChunk } from 'types';
 import { App } from 'obsidian';
 import { randomUUID } from 'crypto';
 import { LLMProvider } from 'llm/llmProvider';

@@ -6,7 +6,7 @@
 	"scripts": {
 		"dev": "node esbuild.config.mjs",
 		"build": "tsc -noEmit -skipLibCheck && node esbuild.config.mjs production",
-		"package": "npm run build && zip -j notes-critic-release.zip main.js styles.css manifest.json",
+		"package": "npm run build && mkdir -p build/notes-critic && cp main.js styles.css manifest.json build/notes-critic/ && cd build && zip -r ../notes-critic-release.zip notes-critic && cd .. && rm -rf build",
 		"version": "node version-bump.mjs && git add manifest.json versions.json",
 		"test": "jest",
 		"test:watch": "jest --watch",
