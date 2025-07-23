@@ -76,7 +76,8 @@ export class ChatView extends ItemView {
             this.rerunConversationTurn.bind(this),
         );
         this.chatInput = new ChatInput(container, {
-            onSend: this.sendChatMessage.bind(this)
+            onSend: this.sendChatMessage.bind(this),
+            plugin: this.plugin
         });
     }
 
@@ -87,7 +88,11 @@ export class ChatView extends ItemView {
 
     private registerEventListeners() {
         this.registerEvent(
-            this.app.workspace.on('active-leaf-change', () => this.updateActiveFile())
+            this.app.workspace.on('active-leaf-change', () => {
+                this.updateActiveFile();
+                // Refresh model selector when switching back to chat view in case settings changed
+                this.refreshModelSelector();
+            })
         );
 
         this.registerEvent(
@@ -99,6 +104,13 @@ export class ChatView extends ItemView {
                 if (file instanceof TFile && file === this.currentFile) {
                     this.onFileModified(file);
                 }
+            })
+        );
+
+        // Listen for layout changes which can indicate settings modal closing
+        this.registerEvent(
+            this.app.workspace.on('layout-change', () => {
+                this.refreshModelSelector();
             })
         );
     }
@@ -119,6 +131,10 @@ export class ChatView extends ItemView {
 
     private updateUI() {
         this.feedbackDisplay.redisplayConversation(this.conversationManager.getConversation());
+    }
+
+    private refreshModelSelector() {
+        this.chatInput?.refreshModelSelector();
     }
 
     private async currentConfig(): Promise<NotesCriticSettings | undefined> {

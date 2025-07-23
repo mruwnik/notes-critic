@@ -4,6 +4,7 @@ import { LLMProvider } from 'llm/llmProvider';
 import { MCPClient } from 'llm/mcpClient';
 import { OAuthClient } from 'llm/oauthClient';
 import { RulesSettingsComponent } from 'settings/components/RulesSettingsComponent';
+import { ModelSelector } from 'views/components/ModelSelector';
 
 export class NotesCriticSettingsTab extends PluginSettingTab {
     plugin: Plugin & { settings: NotesCriticSettings; saveSettings(): Promise<void> };
@@ -176,27 +177,6 @@ export class NotesCriticSettingsTab extends PluginSettingTab {
         return new Setting(this.containerEl.createDiv());
     }
 
-    private createDropdownSetting(options: {
-        name: string;
-        desc: string;
-        field: keyof NotesCriticSettings;
-        choices: { [key: string]: string };
-    }): Setting {
-        const currentValue = this.plugin.settings[options.field];
-        const displayValue = typeof currentValue === 'string' ? currentValue : '';
-
-        return new Setting(this.containerEl)
-            .setName(options.name)
-            .setDesc(options.desc)
-            .addDropdown(dropdown => dropdown
-                .addOptions(options.choices)
-                .setValue(displayValue)
-                .onChange(async (value) => {
-                    (this.plugin.settings as any)[options.field] = value;
-                    await this.plugin.saveSettings();
-                }));
-    }
-
     private createMCPServerSetting(): Setting {
         const currentValue = this.plugin.settings.mcpServerUrl;
         const displayValue = typeof currentValue === 'string' ? currentValue : '';
@@ -361,32 +341,8 @@ export class NotesCriticSettingsTab extends PluginSettingTab {
             field: 'feedbackPrompt'
         });
 
-        this.createDropdownSetting({
-            name: 'Model',
-            desc: 'Select which AI model to use for feedback',
-            field: 'model',
-            choices: {
-                'anthropic/claude-opus-4-20250514': 'Claude Opus 4',
-                'anthropic/claude-sonnet-4-20250514': 'Claude Sonnet 4',
-                'anthropic/claude-3-7-sonnet-latest': 'Claude 3.7 Sonnet',
-                'anthropic/claude-3-5-sonnet-latest': 'Claude 3.5 Sonnet',
-                'anthropic/claude-3-5-haiku-latest': 'Claude 3.5 Haiku',
-                'openai/gpt-3.5-turbo': 'GPT-3.5 Turbo',
-                'openai/gpt-4.1': 'GPT-4.1',
-                'openai/gpt-4.1-mini': 'GPT-4.1 Mini',
-                'openai/gpt-4.1-nano': 'GPT-4.1 Nano',
-                'openai/gpt-4.5-preview': 'GPT-4.5 Preview',
-                'openai/gpt-4o': 'GPT-4o',
-                'openai/gpt-4o-mini': 'GPT-4o Mini',
-                'openai/o1': 'O1',
-                'openai/o1-pro': 'O1 Pro',
-                'openai/o3-pro': 'O3 Pro',
-                'openai/o3': 'O3',
-                'openai/o4-mini': 'O4 Mini',
-                'openai/o3-mini': 'O3 Mini',
-                'openai/o1-mini': 'O1 Mini'
-            }
-        });
+        // Use the shared ModelSelector component
+        new ModelSelector(this.containerEl, this.plugin);
 
         // API Keys
         this.createSectionHeader('API Keys');

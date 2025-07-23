@@ -386,8 +386,8 @@ If your plugin does not need CSS, delete this file.
     width: 100%;
     min-height: 36px;
     padding: 0.75rem;
-    padding-right: 40px;
-    /* Make room for send button */
+    padding-right: 170px;
+    /* Make room for model selector and send button */
     border: 0px;
     background: var(--background-primary);
     color: var(--text-normal);
@@ -402,6 +402,55 @@ If your plugin does not need CSS, delete this file.
 .notes-critic-message-textarea:focus {
     /* outline: none;
     border-color: var(--interactive-accent); */
+}
+
+.notes-critic-chat-model-selector {
+    position: absolute;
+    bottom: 8px;
+    right: 40px;
+    /* Position to the left of the send button */
+    z-index: 1;
+    opacity: 0.4;
+    transition: opacity 0.2s ease;
+}
+
+.notes-critic-chat-model-selector:hover {
+    opacity: 0.8;
+}
+
+.notes-critic-chat-model-selector .notes-critic-model-selector {
+    border: none;
+    padding: 0;
+    margin: 0;
+    background: transparent;
+}
+
+.notes-critic-chat-model-selector .setting-item {
+    border: none;
+    padding: 0;
+    margin: 0;
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+}
+
+.notes-critic-chat-model-selector .setting-item-info {
+    display: none;
+}
+
+.notes-critic-chat-model-selector .dropdown {
+    min-width: 120px;
+    font-size: 0.8em;
+    height: 28px;
+    background: var(--background-primary);
+    border: 1px solid var(--background-modifier-border-hover);
+    border-radius: 3px;
+    color: var(--text-muted);
+}
+
+.notes-critic-chat-model-selector:hover .dropdown {
+    color: var(--text-normal);
+    border-color: var(--background-modifier-border);
 }
 
 .notes-critic-message-send-button {
@@ -422,6 +471,7 @@ If your plugin does not need CSS, delete this file.
     justify-content: center;
     transition: all 0.2s;
     opacity: 0.8;
+    z-index: 1;
 }
 
 .notes-critic-message-send-button:hover {
@@ -602,4 +652,39 @@ If your plugin does not need CSS, delete this file.
     padding: 8px;
     border-radius: 4px;
     font-size: 0.9em;
+}
+
+/* Model Selector Styles */
+.notes-critic-model-selector {
+    border-top: 1px solid var(--background-modifier-border);
+    padding: 12px 8px 8px 8px;
+    margin-top: auto;
+    background: var(--background-primary);
+}
+
+.notes-critic-model-selector .setting-item {
+    border: none;
+    padding: 0;
+    margin: 0;
+}
+
+.notes-critic-model-selector .setting-item-info {
+    padding-right: 8px;
+}
+
+.notes-critic-model-selector .setting-item-name {
+    font-size: 0.9em;
+    font-weight: 500;
+    color: var(--text-normal);
+}
+
+.notes-critic-model-selector .setting-item-description {
+    font-size: 0.8em;
+    color: var(--text-muted);
+    margin-top: 2px;
+}
+
+.notes-critic-model-selector .dropdown {
+    min-width: 140px;
+    font-size: 0.85em;
 }

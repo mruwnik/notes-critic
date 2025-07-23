@@ -1,3 +1,7 @@
+import { Plugin } from 'obsidian';
+import { NotesCriticSettings } from 'types';
+import { ModelSelector } from './ModelSelector';
+
 const CSS_CLASSES = {
     inputContainer: 'notes-critic-message-input-container',
     inputWrapper: 'notes-critic-message-input-wrapper',
@@ -11,12 +15,14 @@ export interface ChatInputOptions {
     showContainer?: boolean;
     onSend: (message: string) => Promise<void>;
     onCancel?: () => void;
+    plugin?: Plugin & { settings: NotesCriticSettings; saveSettings(): Promise<void> };
 }
 
 export class ChatInput {
     private container: HTMLElement;
     private textArea: HTMLTextAreaElement;
     private sendButton: HTMLButtonElement;
+    private modelSelector: ModelSelector;
     private options: ChatInputOptions;
 
     constructor(parent: Element, options: ChatInputOptions) {
@@ -44,6 +50,14 @@ export class ChatInput {
 
         if (this.options.initialValue) {
             this.textArea.value = this.options.initialValue;
+        }
+
+        // Create model selector container only if plugin is provided
+        if (this.options.plugin) {
+            const modelSelectorContainer = inputWrapper.createEl('div', {
+                cls: 'notes-critic-chat-model-selector'
+            });
+            this.modelSelector = new ModelSelector(modelSelectorContainer, this.options.plugin);
         }
 
         this.sendButton = inputWrapper.createEl('button', {
@@ -131,7 +145,14 @@ export class ChatInput {
         this.textArea.style.height = 'auto';
     }
 
+    refreshModelSelector(): void {
+        if (this.modelSelector && this.options.plugin) {
+            this.modelSelector.updateModel(this.options.plugin.settings.model);
+        }
+    }
+
     destroy(): void {
+        this.modelSelector?.destroy();
         this.container.remove();
     }
 } 

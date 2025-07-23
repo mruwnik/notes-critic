@@ -76,5 +76,17 @@ export default class NotesCritic extends Plugin {
 
     async saveSettings() {
         await this.saveData(this.settings);
+        // Refresh model selectors in all chat views when settings are saved
+        this.refreshChatViewModelSelectors();
+    }
+
+    private refreshChatViewModelSelectors() {
+        const leaves = this.app.workspace.getLeavesOfType(CHAT_VIEW_CONFIG.type);
+        leaves.forEach(leaf => {
+            const view = leaf.view as any;
+            if (view && typeof view.refreshModelSelector === 'function') {
+                view.refreshModelSelector();
+            }
+        });
     }
 }
