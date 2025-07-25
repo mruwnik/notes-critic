@@ -7,6 +7,7 @@ import { ControlPanel } from 'views/components/ControlPanel';
 import { FileManager } from 'views/components/FileManager';
 import { ConversationManager, ConversationChunk } from 'conversation/ConversationManager';
 import { RuleManager } from 'rules/RuleManager';
+import { HistoryManager } from 'conversation/HistoryManager';
 
 export class ChatView extends ItemView {
     private currentFile: TFile | null = null;
@@ -15,7 +16,7 @@ export class ChatView extends ItemView {
     private conversationManager: ConversationManager;
     private lastFeedbackTimes: Map<string, Date> = new Map();
     private ruleManager: RuleManager;
-
+    private historyManager: HistoryManager;
     // Components
     private feedbackDisplay: FeedbackDisplay;
     private chatInput: ChatInput;
@@ -28,6 +29,7 @@ export class ChatView extends ItemView {
         this.conversationManager = new ConversationManager(plugin.settings, this.app);
         this.fileManager = new FileManager(this.app, this.noteSnapshots, this.onFileChange.bind(this));
         this.ruleManager = new RuleManager(this.app);
+        this.historyManager = new HistoryManager(this.plugin.settings, this.app);
     }
 
     getViewType() {
@@ -60,16 +62,12 @@ export class ChatView extends ItemView {
             cls: 'notes-critic-header-container'
         });
 
-        headerContainer.createEl('h4', {
-            text: 'Writing Feedback',
-            cls: 'notes-critic-header'
-        });
-
         // Create components
         this.controlPanel = new ControlPanel(
             headerContainer,
             () => this.triggerFeedback(),
             () => this.clearCurrentNote(),
+            this.loadHistory.bind(this)
         );
         this.feedbackDisplay = new FeedbackDisplay(
             container,
@@ -79,6 +77,14 @@ export class ChatView extends ItemView {
             onSend: this.sendChatMessage.bind(this),
             plugin: this.plugin
         });
+    }
+
+    private async loadHistory(id: string) {
+        const history = await this.historyManager.loadHistory(id);
+        if (history) {
+            this.conversationManager = new ConversationManager(this.plugin.settings, this.app, history);
+        }
+        this.updateUI();
     }
 
     private initializeView() {
@@ -130,6 +136,13 @@ export class ChatView extends ItemView {
     }
 
     private updateUI() {
+        this.historyManager.listHistory().then(history => {
+            const current = this.conversationManager.toHistory();
+            if (!history.find(h => h.id === current.id)) {
+                history = [current, ...history];
+            }
+            this.controlPanel.updateHistory(history, current.id);
+        });
         this.feedbackDisplay.redisplayConversation(this.conversationManager.getConversation());
     }
 
@@ -180,7 +193,6 @@ export class ChatView extends ItemView {
             if (this.conversationManager.isInferenceRunning()) {
                 this.conversationManager.cancelInference();
             }
-            this.updateUI();
 
             await this.conversationManager.newConversationRound(
                 {
@@ -189,6 +201,7 @@ export class ChatView extends ItemView {
                     overrideSettings: await this.currentConfig()
                 }
             );
+            this.updateUI();
         } catch (error) {
             new Notice(`Error sending message: ${error.message}`);
         }
@@ -221,7 +234,7 @@ export class ChatView extends ItemView {
 
         const feedbackPrompt = await this.ruleManager.getFeedbackPrompt(this.currentFile.path, this.plugin.settings);
         const prompt = feedbackPrompt
-            .replace(/\${noteName}/g, this.currentFile.basename)
+            .replace(/\${noteName}/g, this.currentFile.path)
             .replace(/\${diff}/g, diff);
 
         const files = [{
@@ -280,16 +293,16 @@ export class ChatView extends ItemView {
     }
 
     private clearCurrentNote() {
-        if (!this.currentFile) return;
+        if (!this.currentFile && this.conversationManager.getConversation().length === 0) return;
 
-        this.fileManager.clearNoteData(this.currentFile);
+        this.currentFile && this.fileManager.clearNoteData(this.currentFile);
         this.conversationManager.cancelInference();
 
         // Create a new conversation manager to reset the conversation
         this.conversationManager = new ConversationManager(this.plugin.settings, this.app);
 
         this.updateUI();
-        new Notice(`Cleared tracking and feedback for ${this.currentFile.basename}`);
+        new Notice(`Cleared tracking and feedback for ${this.currentFile?.basename}`);
     }
 
     async onClose() {

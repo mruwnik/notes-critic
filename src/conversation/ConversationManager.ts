@@ -2,6 +2,7 @@ import { ConversationTurn, UserInput, TurnStep, LLMStreamChunk, NotesCriticSetti
 import { App } from 'obsidian';
 import { randomUUID } from 'crypto';
 import { LLMProvider } from 'llm/llmProvider';
+import { History, HistoryManager } from 'conversation/HistoryManager';
 
 export interface ConversationChunk {
     type: 'thinking' | 'content' | 'tool_call' | 'tool_call_result' | 'error' | 'step_complete' | 'turn_complete' | 'turn_start' | 'step_start';
@@ -53,38 +54,18 @@ export class ConversationManager {
     private conversation: ConversationTurn[] = [];
     private turnAbortControllers = new Map<string, AbortController>();
     public conversationId: string = randomUUID();
+    private historyManager: HistoryManager;
     public title: string = '';
 
     constructor(
         private readonly settings: NotesCriticSettings,
-        private readonly app: App
-    ) { }
-
-    private logName(): string {
-        return `${this.settings.logPath}/${this.conversationId}.json`;
-    }
-
-    public async saveConversation(title?: string): Promise<void> {
-        this.title = title || this.title;
-        if (!await this.app.vault.adapter.exists(this.settings.logPath)) {
-            await this.app.vault.adapter.mkdir(this.settings.logPath);
-        }
-        await this.app.vault.adapter.write(this.logName(), JSON.stringify({
-            title,
-            conversation: this.conversation
-        }));
-        await this.loadConversation();
-    }
-
-    public async loadConversation(): Promise<void> {
-        if (await this.app.vault.adapter.exists(this.logName())) {
-            const conversationFile = await this.app.vault.adapter.read(this.logName());
-            const { title, conversation } = JSON.parse(conversationFile);
-            this.conversation = conversation;
-            this.title = title;
-        } else {
-            this.conversation = [];
-        }
+        private readonly app: App,
+        history: History | undefined = undefined
+    ) {
+        this.conversation = history?.conversation || [];
+        this.conversationId = history?.id || randomUUID();
+        this.title = history?.title || '';
+        this.historyManager = new HistoryManager(this.settings, this.app);
     }
 
     public getConversation(): ConversationTurn[] {
@@ -221,10 +202,15 @@ export class ConversationManager {
             this.turnAbortControllers.delete(turn.id);
         }
 
-        const provider = new LLMProvider({ ...this.settings, model: this.settings.summarizerModel }, this.app);
-        provider.makeTitle(this.conversation).then(title => {
-            this.saveConversation(title);
-        });
+        this.title = await this.historyManager.saveHistory(this.toHistory());
+    }
+
+    public toHistory(): History {
+        return {
+            id: this.conversationId,
+            title: this.title,
+            conversation: this.conversation
+        };
     }
 
     private async streamSingleStep(
