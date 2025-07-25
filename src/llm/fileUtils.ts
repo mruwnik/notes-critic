@@ -60,9 +60,34 @@ export class ObsidianFileProcessor {
                     case 'webp':
                         processedFile.mimeType = 'image/webp';
                         break;
+                    case 'svg':
+                        processedFile.mimeType = 'image/svg+xml';
+                        break;
                     default:
                         processedFile.mimeType = 'image/png'; // Default fallback
                 }
+            }
+        } else if (file.type === 'pdf') {
+            // Read PDF file from Obsidian vault
+            if (!file.content) {
+                try {
+                    const tFile = this.app.vault.getAbstractFileByPath(file.path);
+                    if (tFile instanceof TFile) {
+                        const arrayBuffer = await this.app.vault.readBinary(tFile);
+                        const uint8Array = new Uint8Array(arrayBuffer);
+                        const binaryString = uint8Array.reduce((acc, byte) => acc + String.fromCharCode(byte), '');
+                        processedFile.content = btoa(binaryString);
+                    } else {
+                        throw new Error(`PDF not found: ${file.path}`);
+                    }
+                } catch (error) {
+                    throw new Error(`Failed to read PDF ${file.path}: ${error.message}`);
+                }
+            }
+
+            // Set MIME type for PDF
+            if (!processedFile.mimeType) {
+                processedFile.mimeType = 'application/pdf';
             }
         }
 

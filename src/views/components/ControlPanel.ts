@@ -54,10 +54,6 @@ export class ControlPanel {
     }
 
     private createControlsContainer(parent: Element): HTMLElement {
-        parent.createEl('h4', {
-            text: 'Writing Feedback',
-            cls: 'notes-critic-header'
-        });
         this.historySelect = this.createHistorySelect(parent);
 
         const controlsContainer = parent.createEl('div', {

@@ -55,7 +55,8 @@ describe('ObsidianFileProcessor', () => {
       expect(result).toEqual({
         type: 'text',
         path: 'test.md',
-        content: testContent
+        content: testContent,
+        name: 'test.md'
       });
       expect(mockVault.getAbstractFileByPath).toHaveBeenCalledWith('test.md');
       expect(mockVault.read).toHaveBeenCalledWith(mockTFile);
@@ -74,7 +75,8 @@ describe('ObsidianFileProcessor', () => {
       expect(result).toEqual({
         type: 'text',
         path: 'test.md',
-        content: existingContent
+        content: existingContent,
+        name: 'test.md'
       });
       expect(mockVault.getAbstractFileByPath).not.toHaveBeenCalled();
     });
@@ -161,7 +163,8 @@ describe('ObsidianFileProcessor', () => {
         type: 'image',
         path: 'test.jpg',
         content: existingContent,
-        mimeType: 'image/jpeg'
+        mimeType: 'image/jpeg',
+        name: 'test.jpg'
       });
       expect(mockVault.getAbstractFileByPath).not.toHaveBeenCalled();
     });

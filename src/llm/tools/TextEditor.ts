@@ -1,4 +1,5 @@
 import { App, TFile, TFolder, TAbstractFile } from 'obsidian';
+import { ToolDefinition } from 'types';
 
 export interface TextEditorToolResult {
     success: boolean;
@@ -34,7 +35,7 @@ export interface InsertCommand {
 
 export type TextEditorCommand = ViewCommand | StrReplaceCommand | CreateCommand | InsertCommand;
 
-export class ObsidianTextEditorTool {
+export class TextEditorTool {
     private app: App;
     private editHistory: Map<string, string[]> = new Map(); // For potential undo functionality
 
@@ -358,7 +359,7 @@ export class ObsidianTextEditorTool {
 }
 
 // Tool definition for LLM integration
-export const textEditorToolDefinition = {
+export const textEditorToolDefinition: ToolDefinition = {
     name: 'str_replace_based_edit_tool',
     description: 'A text editor tool that can view, create, and edit files.',
     parameters: {

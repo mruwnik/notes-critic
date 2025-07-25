@@ -1,27 +1,29 @@
-import { NotesCriticSettings } from 'types';
-import { streamFromEndpoint, HttpConfig } from './streaming';
+import { NotesCriticSettings, MCPServerConfig, BaseMCPClient } from 'types';
+import { streamFromEndpoint, HttpConfig } from 'llm/streaming';
 
 export interface Tool {
     name: string;
     description: string;
     inputSchema: Record<string, any>;
     outputSchema?: Record<string, any>;
+    serverId?: string; // Track which server provides this tool
 }
 
-export class MCPClient {
-    private settings: NotesCriticSettings;
-    private serverUrl: string;
+export class MCPClient extends BaseMCPClient {
     private apiKey: string | null = null;
-    private tools: Tool[] = [];
+    public tools: Tool[] = [];
 
-    constructor(settings: NotesCriticSettings) {
-        this.settings = settings;
-        this.serverUrl = settings.mcpServerUrl?.trim() || '';
-        this.apiKey = localStorage.getItem(`oauth_access_token_${this.serverUrl}`);
+    constructor(serverConfig: MCPServerConfig) {
+        super(serverConfig);
+        this.serverConfig = serverConfig;
+        this.apiKey = localStorage.getItem(`oauth_access_token_${serverConfig.url}`);
+        this.getTools(true).then(tools => {
+            this.tools = tools;
+        });
     }
 
     public isEnabled(): boolean {
-        return this.settings.mcpMode !== 'disabled' && this.serverUrl !== '';
+        return this.serverConfig.enabled;
     }
 
     public isAuthenticated(): boolean {
@@ -30,15 +32,23 @@ export class MCPClient {
 
     public getName(): string {
         try {
-            const url = new URL(this.settings.mcpServerUrl || '');
+            const url = new URL(this.serverConfig.url);
             return url.hostname.replace(/\./g, "-");
         } catch {
-            return '';
+            return this.serverConfig.name || this.serverConfig.id;
         }
     }
 
-    public getServerUrl(): string | undefined {
-        return this.settings.mcpServerUrl;
+    public getServerUrl(): string {
+        return this.serverConfig.url;
+    }
+
+    public getServerId(): string {
+        return this.serverConfig.id;
+    }
+
+    public getServerConfig(): MCPServerConfig {
+        return this.serverConfig;
     }
 
     public getApiKey(): string | null {
@@ -46,8 +56,8 @@ export class MCPClient {
     }
 
     /**
- * Make authenticated request to MCP server
- */
+     * Make authenticated request to MCP server
+     */
     private async* makeRequest(endpoint: string, options: any = {}): AsyncGenerator<any, void, unknown> {
         const headers: Record<string, string> = {
             'Content-Type': 'application/json',
@@ -57,7 +67,7 @@ export class MCPClient {
         };
 
         const config: HttpConfig = {
-            url: `${this.serverUrl}${endpoint}`,
+            url: `${this.serverConfig.url}${endpoint}`,
             method: options.method || 'POST',
             headers,
             body: options.body
@@ -84,7 +94,11 @@ export class MCPClient {
         });
         for await (const data of response) {
             if (data.result && data.result.tools) {
-                this.tools = data.result.tools;
+                // Add serverId to each tool
+                this.tools = data.result.tools.map((tool: Tool) => ({
+                    ...tool,
+                    serverId: this.serverConfig.id
+                }));
                 return this.tools;
             }
         }
@@ -116,5 +130,96 @@ export class MCPClient {
             })
         }
         throw new Error('No response from MCP server');
+    }
+
+    public async testConnection(): Promise<boolean> {
+        try {
+            const tools = await this.getTools(true);
+            return tools.length >= 0; // Success if we can get tools (even if empty)
+        } catch (error) {
+            return false;
+        }
+    }
+}
+
+/**
+ * Manager class for multiple MCP server clients
+ */
+export class MCPManager {
+    private settings: NotesCriticSettings;
+    private clients: Map<string, MCPClient> = new Map();
+
+    constructor(settings: NotesCriticSettings) {
+        this.settings = settings;
+        this.initializeClients();
+    }
+
+    private initializeClients(): void {
+        this.clients.clear();
+
+        // Create client for each enabled server
+        for (const serverConfig of this.settings?.mcpServers || []) {
+            if (serverConfig.enabled) {
+                const client = new MCPClient(serverConfig);
+                this.clients.set(serverConfig.id, client);
+            }
+        }
+    }
+
+    public getEnabledServers(): MCPServerConfig[] {
+        return this.settings.mcpServers.filter(server => server.enabled);
+    }
+
+    public getClient(serverId: string): MCPClient | undefined {
+        return this.clients.get(serverId);
+    }
+
+    public getAllClients(): MCPClient[] {
+        return Array.from(this.clients.values());
+    }
+
+    public async getAllTools(forceRefresh: boolean = false): Promise<Tool[]> {
+        const allTools: Tool[] = [];
+
+        for (const client of this.clients.values()) {
+            if (!client.isAuthenticated()) continue;
+
+            try {
+                const tools = await client.getTools(forceRefresh);
+                allTools.push(...tools);
+            } catch (error) {
+                console.warn(`Failed to get tools from server ${client.getServerId()}:`, error);
+            }
+        }
+
+        return allTools;
+    }
+
+    public async toolCall(toolName: string, args: Record<string, any>, serverId?: string): Promise<any> {
+        if (serverId) {
+            const client = this.clients.get(serverId);
+            if (!client) {
+                throw new Error(`Server ${serverId} not found or not enabled`);
+            }
+            return client.toolCall(toolName, args);
+        }
+
+        // If serverId not provided, find the server that has this tool
+        const allTools = await this.getAllTools();
+        const tool = allTools.find(t => t.name === toolName);
+        if (!tool || !tool.serverId) {
+            throw new Error(`Tool ${toolName} not found in any enabled server`);
+        }
+
+        const client = this.clients.get(tool.serverId);
+        if (!client) {
+            throw new Error(`Server ${tool.serverId} not found or not enabled`);
+        }
+
+        return client.toolCall(toolName, args);
+    }
+
+    public async getTools(forceRefresh: boolean = false): Promise<Tool[]> {
+        return this.getAllTools(forceRefresh);
     }
 } 

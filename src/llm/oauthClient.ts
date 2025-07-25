@@ -47,9 +47,38 @@ export class OAuthClient {
      * Load tokens from localStorage
      */
     private loadStoredTokens(): void {
-        this.accessToken = localStorage.getItem(`oauth_access_token_${this.serverUrl}`);
-        this.refreshToken = localStorage.getItem(`oauth_refresh_token_${this.serverUrl}`);
-        this.codeVerifier = sessionStorage.getItem(`oauth_code_verifier_${this.serverUrl}`);
+        this.accessToken = localStorage.getItem(this.accessTokenKey());
+        this.refreshToken = localStorage.getItem(this.refreshTokenKey());
+        this.codeVerifier = sessionStorage.getItem(this.codeVerifierKey());
+    }
+
+    private accessTokenKey(): string {
+        return `oauth_access_token_${this.serverUrl}`;
+    }
+
+    private refreshTokenKey(): string {
+        return `oauth_refresh_token_${this.serverUrl}`;
+    }
+
+    private codeVerifierKey(): string {
+        return `oauth_code_verifier_${this.serverUrl}`;
+    }
+
+    private getRedirectUri(): string {
+        const encodedServerUrl = encodeURIComponent(this.serverUrl);
+        return `obsidian://${MCP_AUTH_CALLBACK}?serverUrl=${encodedServerUrl}`;
+    }
+
+    private clientIdKey(): string {
+        return `oauth_client_id_${this.serverUrl}`;
+    }
+
+    private clientSecretKey(): string {
+        return `oauth_client_secret_${this.serverUrl}`;
+    }
+
+    private stateKey(): string {
+        return `oauth_state_${this.serverUrl}`;
     }
 
     /**
@@ -133,8 +162,12 @@ export class OAuthClient {
         }
 
         // Check if we have a stored client
-        const storedClientId = localStorage.getItem(`oauth_client_id_${this.serverUrl}`);
-        const storedClientSecret = localStorage.getItem(`oauth_client_secret_${this.serverUrl}`);
+        console.log("Checking for stored client", `oauth_client_id_${this.serverUrl}`);
+        const storedClientId = localStorage.getItem(this.clientIdKey());
+        const storedClientSecret = localStorage.getItem(this.clientSecretKey());
+
+        console.log("Stored client ID", storedClientId);
+        console.log("Stored client secret", storedClientSecret);
 
         if (storedClientId) {
             this.client = {
@@ -154,12 +187,12 @@ export class OAuthClient {
         const registrationData = {
             client_name: 'Obsidian Notes Critic',
             client_uri: 'https://github.com/obsidian-notes-critic/obsidian-notes-critic',
-            redirect_uris: [`obsidian://${MCP_AUTH_CALLBACK}`],
+            redirect_uris: [this.getRedirectUri()],
             response_types: ['code'],
             grant_types: ['authorization_code', 'refresh_token'],
             token_endpoint_auth_method: 'none',
             application_type: 'native',
-            scope: 'read write'
+            scope: 'read write',
         };
 
         const response = await requestUrl({
@@ -182,9 +215,9 @@ export class OAuthClient {
         console.log('Client registration response:', clientInfo);
 
         // Store client info
-        localStorage.setItem(`oauth_client_id_${this.serverUrl}`, clientInfo.client_id);
+        localStorage.setItem(this.clientIdKey(), clientInfo.client_id);
         if (clientInfo.client_secret) {
-            localStorage.setItem(`oauth_client_secret_${this.serverUrl}`, clientInfo.client_secret);
+            localStorage.setItem(this.clientSecretKey(), clientInfo.client_secret);
         }
 
         this.client = {
@@ -210,17 +243,17 @@ export class OAuthClient {
         this.codeVerifier = codeVerifier;
 
         // Store code verifier for token exchange
-        sessionStorage.setItem(`oauth_code_verifier_${this.serverUrl}`, codeVerifier);
+        sessionStorage.setItem(this.codeVerifierKey(), codeVerifier);
 
         // Generate state parameter
         const state = this.generateRandomString(32);
-        sessionStorage.setItem(`oauth_state_${this.serverUrl}`, state);
+        sessionStorage.setItem(this.stateKey(), state);
 
         // Build authorization URL
         const authUrl = new URL(metadata.authorization_endpoint);
         authUrl.searchParams.set('client_id', client.client_id);
         authUrl.searchParams.set('response_type', 'code');
-        authUrl.searchParams.set('redirect_uri', 'obsidian://mcp-auth-callback');
+        authUrl.searchParams.set('redirect_uri', this.getRedirectUri());
         authUrl.searchParams.set('scope', 'read write');
         authUrl.searchParams.set('state', state);
         authUrl.searchParams.set('code_challenge', codeChallenge);
@@ -234,7 +267,7 @@ export class OAuthClient {
      */
     public async exchangeCodeForToken(code: string, state: string): Promise<OAuthTokens> {
         // Verify state parameter
-        const storedState = sessionStorage.getItem(`oauth_state_${this.serverUrl}`);
+        const storedState = sessionStorage.getItem(this.stateKey());
         if (!storedState || storedState !== state) {
             throw new Error('Invalid state parameter');
         }
@@ -242,7 +275,7 @@ export class OAuthClient {
         const metadata = await this.discoverServerMetadata();
         const client: OAuthClientInfo = await this.registerClient();
 
-        const codeVerifier = sessionStorage.getItem(`oauth_code_verifier_${this.serverUrl}`);
+        const codeVerifier = sessionStorage.getItem(this.codeVerifierKey());
         if (!codeVerifier) {
             throw new Error('Code verifier not found');
         }
@@ -250,7 +283,8 @@ export class OAuthClient {
         const tokenData = new URLSearchParams();
         tokenData.append('grant_type', 'authorization_code');
         tokenData.append('code', code);
-        tokenData.append('redirect_uri', 'obsidian://mcp-auth-callback');
+        tokenData.append('redirect_uri', this.getRedirectUri());
+        // tokenData.append('redirect_uri', 'obsidian://mcp-auth-callback');
         tokenData.append('client_id', client.client_id);
         tokenData.append('code_verifier', codeVerifier);
 
@@ -258,6 +292,7 @@ export class OAuthClient {
             tokenData.append('client_secret', client.client_secret);
         }
 
+        console.log('tokenData', tokenData.toString());
         const response = await requestUrl({
             url: metadata.token_endpoint,
             method: 'POST',
@@ -270,23 +305,23 @@ export class OAuthClient {
         });
 
         if (response.status >= 400) {
-            throw new Error(`Token exchange failed: ${response.status}`);
+            throw new Error(`Token exchange failed: ${response.status} ${response.text}`);
         }
 
         const tokens = response.json as OAuthTokens;
 
         // Store tokens
         this.accessToken = tokens.access_token;
-        localStorage.setItem(`oauth_access_token_${this.serverUrl}`, tokens.access_token);
+        localStorage.setItem(this.accessTokenKey(), tokens.access_token);
 
         if (tokens.refresh_token) {
             this.refreshToken = tokens.refresh_token;
-            localStorage.setItem(`oauth_refresh_token_${this.serverUrl}`, tokens.refresh_token);
+            localStorage.setItem(this.refreshTokenKey(), tokens.refresh_token);
         }
 
         // Clean up session storage
-        sessionStorage.removeItem(`oauth_code_verifier_${this.serverUrl}`);
-        sessionStorage.removeItem(`oauth_state_${this.serverUrl}`);
+        sessionStorage.removeItem(this.codeVerifierKey());
+        sessionStorage.removeItem(this.stateKey());
 
         return tokens;
     }
@@ -322,28 +357,21 @@ export class OAuthClient {
         });
 
         if (response.status >= 400) {
-            throw new Error(`Token refresh failed: ${response.status}`);
+            throw new Error(`Token refresh failed: ${response.status} `);
         }
 
         const tokens = response.json as OAuthTokens;
 
         // Update stored tokens
         this.accessToken = tokens.access_token;
-        localStorage.setItem(`oauth_access_token_${this.serverUrl}`, tokens.access_token);
+        localStorage.setItem(this.accessTokenKey(), tokens.access_token);
 
         if (tokens.refresh_token) {
             this.refreshToken = tokens.refresh_token;
-            localStorage.setItem(`oauth_refresh_token_${this.serverUrl}`, tokens.refresh_token);
+            localStorage.setItem(this.refreshTokenKey(), tokens.refresh_token);
         }
 
         return tokens;
-    }
-
-    /**
-     * Get current access token
-     */
-    public getAccessToken(): string | null {
-        return this.accessToken;
     }
 
     /**
@@ -355,12 +383,12 @@ export class OAuthClient {
         this.codeVerifier = null;
 
         // Clear stored tokens
-        localStorage.removeItem(`oauth_access_token_${this.serverUrl}`);
-        localStorage.removeItem(`oauth_refresh_token_${this.serverUrl}`);
-        localStorage.removeItem(`oauth_client_id_${this.serverUrl}`);
-        localStorage.removeItem(`oauth_client_secret_${this.serverUrl}`);
-        sessionStorage.removeItem(`oauth_code_verifier_${this.serverUrl}`);
-        sessionStorage.removeItem(`oauth_state_${this.serverUrl}`);
+        localStorage.removeItem(this.accessTokenKey());
+        localStorage.removeItem(this.refreshTokenKey());
+        localStorage.removeItem(this.clientIdKey());
+        localStorage.removeItem(this.clientSecretKey());
+        sessionStorage.removeItem(this.codeVerifierKey());
+        sessionStorage.removeItem(this.stateKey());
     }
 
     /**
@@ -372,7 +400,7 @@ export class OAuthClient {
         }
 
         const headers = {
-            'Authorization': `Bearer ${this.accessToken}`,
+            'Authorization': `Bearer ${this.accessToken} `,
             ...options.headers
         };
 
@@ -393,7 +421,7 @@ export class OAuthClient {
                     url,
                     method: options.method || 'GET',
                     headers: {
-                        'Authorization': `Bearer ${this.accessToken}`,
+                        'Authorization': `Bearer ${this.accessToken} `,
                         ...options.headers
                     },
                     body: options.body
@@ -411,7 +439,7 @@ export class OAuthClient {
                     url,
                     method: options.method || 'GET',
                     headers: {
-                        'Authorization': `Bearer ${this.accessToken}`,
+                        'Authorization': `Bearer ${this.accessToken} `,
                         ...options.headers
                     },
                     body: options.body

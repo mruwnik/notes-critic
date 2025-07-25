@@ -1,9 +1,9 @@
 import { App, Plugin, PluginSettingTab, Setting } from 'obsidian';
 import { NotesCriticSettings } from 'types';
 import { LLMProvider } from 'llm/llmProvider';
-import { MCPClient } from 'llm/mcpClient';
-import { OAuthClient } from 'llm/oauthClient';
 import { RulesSettingsComponent } from 'settings/components/RulesSettingsComponent';
+import { MCPSettingsComponent } from 'settings/components/MCPSettingsComponent';
+import { ToolsSettingsComponent } from 'settings/components/ToolsSettingsComponent';
 import { ModelSelector } from 'views/components/ModelSelector';
 
 export class NotesCriticSettingsTab extends PluginSettingTab {
@@ -99,7 +99,6 @@ export class NotesCriticSettingsTab extends PluginSettingTab {
                     .setTooltip('Test API key connection')
                     .setClass('notes-critic-test-button')
                     .onClick(async () => {
-                        const originalText = button.buttonEl.textContent;
                         button.setButtonText('Testing...');
                         button.setDisabled(true);
 
@@ -121,6 +120,7 @@ export class NotesCriticSettingsTab extends PluginSettingTab {
                             }, 3000);
                         } catch (error) {
                             button.setButtonText('✗ Error');
+                            console.error('Failed to test API key:', error);
                             button.buttonEl.className = 'notes-critic-test-button notes-critic-test-button-invalid';
 
                             setTimeout(() => {
@@ -177,148 +177,6 @@ export class NotesCriticSettingsTab extends PluginSettingTab {
         return new Setting(this.containerEl.createDiv());
     }
 
-    private createMCPServerSetting(): Setting {
-        const currentValue = this.plugin.settings.mcpServerUrl;
-        const displayValue = typeof currentValue === 'string' ? currentValue : '';
-
-        return new Setting(this.containerEl)
-            .setName('MCP Server URL')
-            .setDesc('URL of the MCP server for enhanced context (leave empty to disable)')
-            .addText(text => {
-                text.setPlaceholder('http://localhost:8000')
-                    .setValue(displayValue);
-
-                text.inputEl.className = 'notes-critic-api-key-input';
-
-                text.onChange(async (value) => {
-                    this.plugin.settings.mcpServerUrl = value;
-                    await this.plugin.saveSettings();
-                });
-
-                return text;
-            })
-            .addButton(button => {
-                button.setButtonText('Test')
-                    .setTooltip('Test MCP server connection')
-                    .setClass('notes-critic-test-button')
-                    .onClick(async () => {
-                        if (!this.plugin.settings.mcpServerUrl) {
-                            button.setButtonText('No Server URL')
-                                .setTooltip('Enter a valid MCP server URL first')
-                                .setClass('notes-critic-test-button')
-                            return;
-                        }
-
-                        button.setButtonText('Testing...');
-                        button.setDisabled(true);
-
-                        try {
-                            const mcpClient = new MCPClient(this.plugin.settings);
-                            const tools = await mcpClient.getTools(true);
-                            const isValid = tools.length > 0;
-
-                            if (isValid) {
-                                button.setButtonText('✓ Connected');
-                                button.buttonEl.className = 'notes-critic-test-button notes-critic-test-button-valid';
-                            } else {
-                                button.setButtonText('✗ Failed');
-                                button.buttonEl.className = 'notes-critic-test-button notes-critic-test-button-invalid';
-                            }
-
-                            setTimeout(() => {
-                                button.setButtonText('Test');
-                                button.setDisabled(false);
-                                button.buttonEl.className = 'notes-critic-test-button';
-                            }, 3000);
-                        } catch (error) {
-                            console.error('MCP server test failed:', error);
-                            button.setButtonText('✗ Error');
-                            button.buttonEl.className = 'notes-critic-test-button notes-critic-test-button-invalid';
-
-                            setTimeout(() => {
-                                button.setButtonText('Test');
-                                button.setDisabled(false);
-                                button.buttonEl.className = 'notes-critic-test-button';
-                            }, 3000);
-                        }
-                    });
-            });
-    }
-
-    private createMCPAuthSetting(): Setting {
-        const serverUrl = this.plugin.settings.mcpServerUrl;
-        let oauthClient: OAuthClient | null = null;
-
-        // Only create OAuthClient if we have a valid server URL
-        if (serverUrl && serverUrl.trim().length > 0) {
-            try {
-                oauthClient = new OAuthClient(serverUrl);
-            } catch (error) {
-                console.warn('Invalid MCP server URL for OAuth:', error);
-            }
-        }
-
-        return new Setting(this.containerEl)
-            .setName('MCP Authorization')
-            .setDesc('Authorize with MCP server using OAuth 2.1')
-            .addButton(button => {
-                let isWaitingForCallback = false;
-
-                const updateButton = () => {
-                    if (!oauthClient) {
-                        button.setButtonText('No Server URL')
-                            .setTooltip('Enter a valid MCP server URL first')
-                            .setClass('notes-critic-test-button')
-                            .setDisabled(true);
-                    } else if (isWaitingForCallback) {
-                        button.setButtonText('Complete Auth')
-                            .setTooltip('Complete authorization in browser, then click here')
-                            .setClass('notes-critic-test-button');
-                    } else if (oauthClient.isAuthenticated()) {
-                        button.setButtonText('Logout')
-                            .setTooltip('Logout from MCP server')
-                            .setClass('notes-critic-test-button');
-                    } else {
-                        button.setButtonText('Authorize')
-                            .setTooltip('Authorize with MCP server')
-                            .setClass('notes-critic-test-button');
-                    }
-                };
-
-                updateButton();
-
-                button.onClick(async () => {
-                    if (!oauthClient) {
-                        return;
-                    }
-
-                    await oauthClient.logout();
-                    try {
-                        button.setButtonText('Authorizing...');
-                        button.setDisabled(true);
-
-                        try {
-                            const authUrl = await oauthClient.authorize();
-
-                            // Open authorization URL in browser
-                            window.open(authUrl, '_blank');
-
-                        } catch (error) {
-                            console.error('Failed to authorize:', error);
-                        }
-                    } catch (error) {
-                        button.setButtonText('✗ Error');
-                        button.buttonEl.className = 'notes-critic-test-button notes-critic-test-button-invalid';
-
-                        setTimeout(() => {
-                            updateButton();
-                            button.setDisabled(false);
-                        }, 3000);
-                    }
-                });
-            });
-    }
-
     async display(): Promise<void> {
         const { containerEl } = this;
 
@@ -369,9 +227,11 @@ export class NotesCriticSettingsTab extends PluginSettingTab {
 
         // MCP Settings
         this.createSectionHeader('Model Context Protocol (MCP)');
+        await this.createMCPSettings();
 
-        this.createMCPServerSetting();
-        this.createMCPAuthSetting();
+        // Tools Overview
+        this.createSectionHeader('Available Tools');
+        await this.createToolsOverview();
 
         // Feedback Settings
         this.createSectionHeader('Feedback Settings');
@@ -442,6 +302,18 @@ export class NotesCriticSettingsTab extends PluginSettingTab {
         // Rules Management Section
         this.createSectionHeader('Rules Management');
         await this.createRulesOverview();
+    }
+
+    private async createMCPSettings(): Promise<void> {
+        const container = this.containerEl.createDiv();
+        const mcpComponent = new MCPSettingsComponent(this.app, container, this.plugin);
+        await mcpComponent.render();
+    }
+
+    private async createToolsOverview(): Promise<void> {
+        const container = this.containerEl.createDiv();
+        const toolsComponent = new ToolsSettingsComponent(this.app, container, this.plugin);
+        await toolsComponent.render();
     }
 
     private async createRulesOverview(): Promise<void> {

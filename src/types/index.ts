@@ -1,3 +1,5 @@
+import { Tool } from "llm/mcpClient";
+
 export interface NoteSnapshot {
     baseline: string;
     current: string;
@@ -52,13 +54,15 @@ export interface NotesCriticSettings {
     maxTokens: number;
     thinkingBudgetTokens: number;
     mcpEnabled: boolean;
-    mcpServers: MCPServerConfig[];
-    mcpServerUrl?: string;
-    mcpMode: 'disabled' | 'enabled' | 'required';
+    mcpServers: MCPServerConfig[]; // Configuration for creating clients
+    mcpClients: BaseMCPClient[]; // Actual client instances
+    mcpServerUrl: string;
+    mcpMode: 'disabled' | 'enabled';
     feedbackThreshold: number;
     feedbackCooldownSeconds: number;
     feedbackPrompt: string;
     logPath: string;
+    enabledTools: string[];
 }
 
 export interface MCPServerConfig {
@@ -69,6 +73,14 @@ export interface MCPServerConfig {
     transport: 'websocket' | 'stdio';
     args?: string[];
     env?: Record<string, string>;
+    apiKey?: string;
+}
+
+export interface MCPServerState {
+    config: MCPServerConfig;
+    apiKey: string | null;
+    tools: Tool[];
+    authenticated: boolean;
 }
 
 export interface LLMFile {
@@ -121,32 +133,6 @@ export interface ChatMessage {
     isStreaming?: boolean;
 }
 
-export const DEFAULT_SETTINGS: NotesCriticSettings = {
-    feedbackThreshold: 3,
-    feedbackCooldownSeconds: 30,
-    systemPrompt: 'You are a helpful writing assistant. Provide constructive feedback on notes.',
-    feedbackPrompt: `Please provide feedback on the changes made to "\${noteName}".
-
-The current note content is attached as a file for context.
-
-Changes made:
-\${diff}
-
-Please provide constructive feedback focusing on the recent changes.`,
-    model: 'anthropic/claude-3-sonnet-20240229',
-    summarizerModel: 'anthropic/claude-3-5-haiku-latest',
-    anthropicApiKey: '',
-    openaiApiKey: '',
-    maxHistoryTokens: 4000,
-    maxTokens: 2000,
-    thinkingBudgetTokens: 1000,
-    mcpEnabled: false,
-    mcpServers: [],
-    mcpServerUrl: '',
-    mcpMode: 'disabled' as const,
-    logPath: '.notes-critic/conversations'
-};
-
 export const CHAT_VIEW_CONFIG = {
     type: 'notes-critic-chat',
     name: 'Notes Critic Chat',
@@ -185,3 +171,28 @@ export interface RuleMatch {
     rule: NotesCriticRule;
     matchedPattern: string;
 }
+
+export interface ToolDefinition {
+    name: string;
+    description: string;
+    parameters: Record<string, any>;
+}
+
+// Abstract base class for MCP clients to avoid circular dependencies
+export abstract class BaseMCPClient {
+    public abstract tools: Tool[];
+
+    constructor(protected serverConfig: MCPServerConfig) { }
+
+    abstract isEnabled(): boolean;
+    abstract isAuthenticated(): boolean;
+    abstract getName(): string;
+    abstract getServerUrl(): string;
+    abstract getServerId(): string;
+    abstract getServerConfig(): MCPServerConfig;
+    abstract getApiKey(): string | null;
+    abstract getTools(forceRefresh?: boolean): Promise<Tool[]>;
+    abstract toolCall(toolName: string, args: Record<string, any>): Promise<any>;
+    abstract testConnection(): Promise<boolean>;
+}
+

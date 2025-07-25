@@ -7,39 +7,145 @@ If your plugin does not need CSS, delete this file.
 
 */
 
-/* Notes Critic Chat View Styles */
+/* === SHARED STYLES === */
 
-.notes-critic-header-container {
+/* Shared button base styles */
+.notes-critic-icon-button,
+.notes-critic-edit-send-button,
+.notes-critic-message-send-button,
+.notes-critic-add-server-button,
+.notes-critic-delete-server-button,
+.notes-critic-rerun-button {
+    border: none;
+    cursor: pointer;
+    transition: all 0.2s ease;
     display: flex;
     align-items: center;
+    justify-content: center;
+}
+
+/* Shared disabled state */
+.notes-critic-icon-button:disabled,
+.notes-critic-message-send-button:disabled {
+    cursor: not-allowed;
+    opacity: 0.5;
+}
+
+/* Shared accent button styles */
+.notes-critic-edit-send-button,
+.notes-critic-message-send-button,
+.notes-critic-add-server-button {
+    background: var(--interactive-accent);
+    color: var(--text-on-accent);
+}
+
+.notes-critic-edit-send-button:hover,
+.notes-critic-message-send-button:hover,
+.notes-critic-add-server-button:hover {
+    background: var(--interactive-accent-hover);
+}
+
+/* Shared square button styles */
+.notes-critic-edit-send-button,
+.notes-critic-message-send-button {
+    position: absolute;
+    bottom: 8px;
+    right: 4px;
+    height: 28px;
+    width: 28px;
+    font-size: 0.9rem;
+    padding: 0.25rem;
+    border-radius: 3px;
+    opacity: 0.8;
+}
+
+.notes-critic-edit-send-button:hover,
+.notes-critic-message-send-button:hover {
+    opacity: 1;
+}
+
+/* Shared container styles */
+.notes-critic-rules-overview,
+.notes-critic-mcp-servers-container,
+.notes-critic-tools-container {
+    border: 1px solid var(--background-modifier-border);
+    border-radius: 8px;
+    background: var(--background-secondary);
+    padding: 16px;
+    margin: 16px 0;
+}
+
+/* Shared card styles */
+.notes-critic-rule-card,
+.notes-critic-mcp-server-item {
+    background: var(--background-primary);
+    border: 1px solid var(--background-modifier-border);
+    border-radius: 6px;
+    overflow: hidden;
+    transition: all 0.2s ease;
+}
+
+.notes-critic-rule-card:hover,
+.notes-critic-mcp-server-item:hover {
+    border-color: var(--interactive-accent);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+/* Shared header layout */
+.notes-critic-header-container,
+.notes-critic-mcp-servers-header,
+.notes-critic-rule-header {
+    display: flex;
     justify-content: space-between;
-    margin-bottom: 1rem;
-    padding-bottom: 0.5rem;
+    align-items: center;
+    padding-bottom: 8px;
     border-bottom: 1px solid var(--background-modifier-border);
 }
 
-.notes-critic-header {
-    font-size: 1.2em;
-    font-weight: bold;
+/* Shared message styles */
+.notes-critic-user-input-element,
+.notes-critic-ai-response-element {
+    border: 1px solid var(--background-modifier-border);
+    border-radius: 8px;
+    padding: 1rem;
+    margin-bottom: 0.5rem;
+    word-wrap: break-word;
+}
+
+.notes-critic-user-input-element:last-child,
+.notes-critic-ai-response-element:last-child {
+    margin-bottom: 0;
+}
+
+/* Shared content section styles */
+.notes-critic-thinking-content,
+.notes-critic-tool-call-content {
+    background: var(--background-primary-alt);
+    padding: 0.75rem;
+    border-radius: 4px;
+    font-size: 0.9em;
+    line-height: 1.4;
+    color: var(--text-muted);
+}
+
+/* Shared setting overrides */
+.notes-critic-model-selector .setting-item,
+.notes-critic-chat-model-selector .setting-item {
+    border: none;
+    padding: 0;
     margin: 0;
 }
 
-.notes-critic-controls {
-    display: flex;
-    gap: 0.5rem;
-    align-items: center;
-}
+/* === SPECIFIC STYLES === */
 
+/* Unique button implementations */
 .notes-critic-icon-button {
-    padding: 0.4rem 0.6rem;
     background: var(--interactive-normal);
     color: var(--text-normal);
-    border: none;
-    border-radius: 4px;
-    cursor: pointer;
+    padding: 0.4rem 0.6rem;
     font-size: 1rem;
     line-height: 1;
-    transition: background-color 0.2s;
+    border-radius: 4px;
 }
 
 .notes-critic-icon-button:hover {
@@ -49,43 +155,142 @@ If your plugin does not need CSS, delete this file.
 .notes-critic-icon-button:disabled {
     background: var(--background-modifier-border);
     color: var(--text-muted);
-    cursor: not-allowed;
-    opacity: 0.5;
+}
+
+.notes-critic-message-send-button {
+    z-index: 1;
+}
+
+.notes-critic-message-send-button:disabled {
+    background: var(--background-modifier-border);
+    color: var(--text-muted);
+}
+
+.notes-critic-rerun-button {
+    position: absolute;
+    bottom: 0.5rem;
+    right: 0.5rem;
+    background: var(--background-secondary);
+    color: var(--text-muted);
+    font-size: 1.1em;
+    padding: 0.25rem 0.4rem;
+    border-radius: 3px;
+    opacity: 0.3;
+    transition: opacity 0.2s;
+}
+
+.notes-critic-rerun-button:hover {
+    opacity: 0.8;
+    background: var(--background-modifier-hover);
+    color: var(--text-normal);
+}
+
+.notes-critic-add-server-button {
+    padding: 6px 12px;
+    font-size: 0.9em;
+    border-radius: 4px;
+}
+
+.notes-critic-add-server-button:hover {
+    transform: translateY(-1px);
+}
+
+.notes-critic-delete-server-button {
+    background: none;
+    color: var(--text-error);
+    font-size: 1.1em;
+    padding: 4px;
+    border-radius: 3px;
+}
+
+.notes-critic-delete-server-button:hover {
+    background: var(--background-modifier-error);
+    transform: scale(1.1);
+}
+
+/* Unique message styles */
+.notes-critic-user-input-element {
+    background: var(--background-secondary);
+}
+
+.notes-critic-ai-response-element {
+    background: var(--background-primary-alt);
+    margin-bottom: 1rem;
+    position: relative;
+}
+
+/* Unique content styles */
+.notes-critic-thinking-content {
+    font-style: italic;
+}
+
+/* Unique container styles */
+.notes-critic-header-container {
+    margin-bottom: 1rem;
+}
+
+.notes-critic-mcp-servers-header {
+    margin-bottom: 16px;
+}
+
+.notes-critic-rule-header {
+    margin-bottom: 8px;
+}
+
+.notes-critic-rule-card {
+    padding: 12px;
+    margin-bottom: 12px;
+}
+
+.notes-critic-rule-card.notes-critic-rule-disabled {
+    opacity: 0.6;
+    border-color: var(--text-faint);
+}
+
+/* Chat View Styles */
+.notes-critic-header {
+    font-size: 1.2em;
+    font-weight: bold;
+    margin: 0 0 1rem 0;
+    color: var(--text-normal);
+}
+
+.notes-critic-controls {
+    display: flex;
+    gap: 0.5rem;
+    align-items: center;
+    margin-top: 0.5rem;
+    margin-bottom: 1rem;
+}
+
+.notes-critic-history-select {
+    margin-bottom: 0.5rem;
+    margin-right: 0.5rem;
+    border: 1px solid var(--background-modifier-border);
+    border-radius: 4px;
+    background: var(--background-primary);
+    color: var(--text-normal);
+    font-family: var(--font-interface);
+    font-size: 0.9em;
+    min-width: 200px;
+    width: 100%;
+}
+
+.notes-critic-history-select option {
+    max-width: 10em;
+}
+
+.notes-critic-history-select:focus {
+    outline: none;
+    border-color: var(--interactive-accent);
 }
 
 .notes-critic-messages {
     flex: 1;
     overflow-y: auto;
     padding-right: 4px;
-}
-
-/* User input element styles */
-.notes-critic-user-input-element {
-    background: var(--background-secondary);
-    border: 1px solid var(--background-modifier-border);
-    border-radius: 8px;
-    padding: 1rem;
-    margin-bottom: 0.5rem;
-    word-wrap: break-word;
-}
-
-.notes-critic-user-input-element:last-child {
-    margin-bottom: 0;
-}
-
-/* AI response element styles */
-.notes-critic-ai-response-element {
-    background: var(--background-primary-alt);
-    border: 1px solid var(--background-modifier-border);
-    border-radius: 8px;
-    padding: 1rem;
-    margin-bottom: 1rem;
-    word-wrap: break-word;
-    position: relative;
-}
-
-.notes-critic-ai-response-element:last-child {
-    margin-bottom: 0;
+    min-height: 200px;
+    max-height: calc(100vh - 200px);
 }
 
 .notes-critic-timestamp {
@@ -111,7 +316,6 @@ If your plugin does not need CSS, delete this file.
     background-color: var(--background-modifier-hover);
 }
 
-/* Edit mode styles */
 .notes-critic-edit-wrapper {
     position: relative;
     width: 100%;
@@ -123,34 +327,8 @@ If your plugin does not need CSS, delete this file.
     resize: none !important;
     width: 100% !important;
     padding-right: 40px !important;
-    /* Make room for send button */
     box-sizing: border-box;
     field-sizing: content !important;
-}
-
-.notes-critic-edit-send-button {
-    position: absolute;
-    bottom: 8px;
-    right: 4px;
-    background: var(--interactive-accent);
-    border: none;
-    color: var(--text-on-accent);
-    cursor: pointer;
-    font-size: 0.9rem;
-    padding: 0.25rem;
-    border-radius: 3px;
-    height: 28px;
-    width: 28px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    transition: all 0.2s;
-    opacity: 0.8;
-}
-
-.notes-critic-edit-send-button:hover {
-    background: var(--interactive-accent-hover);
-    opacity: 1;
 }
 
 .notes-critic-response-content {
@@ -160,28 +338,6 @@ If your plugin does not need CSS, delete this file.
     padding: 1rem 0;
 }
 
-.notes-critic-rerun-button {
-    position: absolute;
-    bottom: 0.5rem;
-    right: 0.5rem;
-    background: var(--background-secondary);
-    border: none;
-    color: var(--text-muted);
-    cursor: pointer;
-    font-size: 1.1em;
-    padding: 0.25rem 0.4rem;
-    border-radius: 3px;
-    opacity: 0.3;
-    transition: opacity 0.2s;
-}
-
-.notes-critic-rerun-button:hover {
-    opacity: 0.8;
-    background: var(--background-modifier-hover);
-    color: var(--text-normal);
-}
-
-/* Generic details section styles */
 .notes-critic-details-section {
     margin-bottom: 0.5rem;
     background: var(--background-primary-alt);
@@ -200,33 +356,12 @@ If your plugin does not need CSS, delete this file.
     background: var(--background-modifier-hover);
 }
 
-/* Thinking content styles */
-.notes-critic-thinking-content {
-    background: var(--background-primary-alt);
-    padding: 0.75rem;
-    border-radius: 4px;
-    font-size: 0.9em;
-    line-height: 1.4;
-    color: var(--text-muted);
-    font-style: italic;
-}
-
-/* Step container styles */
 .notes-critic-step-container {
     margin-bottom: 0.125rem;
 }
 
 .notes-critic-step-container:last-child {
     margin-bottom: 0;
-}
-
-.notes-critic-tool-call-content {
-    background: var(--background-primary-alt);
-    padding: 0.75rem;
-    border-radius: 4px;
-    font-size: 0.9em;
-    line-height: 1.4;
-    color: var(--text-muted);
 }
 
 .notes-critic-tool-call-content code {
@@ -303,7 +438,7 @@ If your plugin does not need CSS, delete this file.
     font-style: italic;
 }
 
-/* Streaming cursor animation */
+/* Animations */
 .streaming-cursor {
     animation: blink 1s infinite;
     color: var(--text-accent);
@@ -322,7 +457,6 @@ If your plugin does not need CSS, delete this file.
     }
 }
 
-/* Animated dots for processing states */
 .processing-dots::after {
     content: '';
     animation: dots 1.5s infinite;
@@ -350,33 +484,14 @@ If your plugin does not need CSS, delete this file.
     }
 }
 
-/* Responsive adjustments for narrow sidebars */
-@media (max-width: 400px) {
-    .notes-critic-controls {
-        flex-direction: column;
-    }
-}
-
-/* Make sure the view takes up full height */
+/* Layout */
 .view-content {
     display: flex;
     flex-direction: column;
     height: 100%;
 }
 
-/* Ensure messages container can scroll properly */
-.notes-critic-messages {
-    min-height: 200px;
-    max-height: calc(100vh - 200px);
-}
-
 /* Chat input styles */
-.notes-critic-message-input-container {
-    /* border-top: 1px solid var(--background-modifier-border);
-    background: var(--background-primary); */
-    /* margin-top: auto; */
-}
-
 .notes-critic-message-input-wrapper {
     position: relative;
     width: 100%;
@@ -387,7 +502,6 @@ If your plugin does not need CSS, delete this file.
     min-height: 36px;
     padding: 0.75rem;
     padding-right: 170px;
-    /* Make room for model selector and send button */
     border: 0px;
     background: var(--background-primary);
     color: var(--text-normal);
@@ -399,16 +513,10 @@ If your plugin does not need CSS, delete this file.
     field-sizing: content;
 }
 
-.notes-critic-message-textarea:focus {
-    /* outline: none;
-    border-color: var(--interactive-accent); */
-}
-
 .notes-critic-chat-model-selector {
     position: absolute;
     bottom: 8px;
     right: 40px;
-    /* Position to the left of the send button */
     z-index: 1;
     opacity: 0.4;
     transition: opacity 0.2s ease;
@@ -423,15 +531,6 @@ If your plugin does not need CSS, delete this file.
     padding: 0;
     margin: 0;
     background: transparent;
-}
-
-.notes-critic-chat-model-selector .setting-item {
-    border: none;
-    padding: 0;
-    margin: 0;
-    display: flex;
-    align-items: center;
-    justify-content: flex-end;
 }
 
 .notes-critic-chat-model-selector .setting-item-info {
@@ -453,47 +552,7 @@ If your plugin does not need CSS, delete this file.
     border-color: var(--background-modifier-border);
 }
 
-.notes-critic-message-send-button {
-    position: absolute;
-    bottom: 8px;
-    right: 4px;
-    background: var(--interactive-accent);
-    color: var(--text-on-accent);
-    border: none;
-    border-radius: 3px;
-    cursor: pointer;
-    font-size: 0.9rem;
-    padding: 0.25rem;
-    height: 28px;
-    width: 28px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    transition: all 0.2s;
-    opacity: 0.8;
-    z-index: 1;
-}
-
-.notes-critic-message-send-button:hover {
-    background: var(--interactive-accent-hover);
-    opacity: 1;
-}
-
-.notes-critic-message-send-button:disabled {
-    background: var(--background-modifier-border);
-    color: var(--text-muted);
-    cursor: not-allowed;
-    opacity: 0.5;
-}
-
-/* Responsive adjustments for narrow sidebars */
-@media (max-width: 400px) {
-    .notes-critic-message-input-container {
-        padding: 0.5rem;
-    }
-}
-
-/* Settings-specific styles */
+/* Settings styles */
 .notes-critic-settings-section {
     margin-top: 2rem;
     margin-bottom: 1rem;
@@ -502,7 +561,6 @@ If your plugin does not need CSS, delete this file.
     padding-bottom: 0.5rem;
 }
 
-/* Override default setting-item layout for textarea settings */
 .notes-critic-textarea-setting {
     flex-direction: column !important;
     align-items: stretch !important;
@@ -553,15 +611,7 @@ If your plugin does not need CSS, delete this file.
     color: white !important;
 }
 
-/* Rules Management Styles */
-.notes-critic-rules-overview {
-    border: 1px solid var(--background-modifier-border);
-    border-radius: 8px;
-    padding: 16px;
-    background: var(--background-secondary);
-    margin-top: 16px;
-}
-
+/* Rules Management */
 .notes-critic-rules-description {
     margin-bottom: 16px;
     color: var(--text-muted);
@@ -597,24 +647,14 @@ If your plugin does not need CSS, delete this file.
     overflow-y: auto;
 }
 
-.notes-critic-rule-card {
-    border: 1px solid var(--background-modifier-border);
-    border-radius: 6px;
-    padding: 12px;
-    margin-bottom: 12px;
-    background: var(--background-primary);
+.notes-critic-rule-details p {
+    margin: 4px 0;
+    font-size: 0.9em;
+    color: var(--text-muted);
 }
 
-.notes-critic-rule-card.notes-critic-rule-disabled {
-    opacity: 0.6;
-    border-color: var(--text-faint);
-}
-
-.notes-critic-rule-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: flex-start;
-    margin-bottom: 8px;
+.notes-critic-rule-details strong {
+    color: var(--text-normal);
 }
 
 .notes-critic-rule-name {
@@ -627,16 +667,6 @@ If your plugin does not need CSS, delete this file.
     font-size: 0.8em;
     color: var(--text-muted);
     font-family: var(--font-monospace);
-}
-
-.notes-critic-rule-details p {
-    margin: 4px 0;
-    font-size: 0.9em;
-    color: var(--text-muted);
-}
-
-.notes-critic-rule-details strong {
-    color: var(--text-normal);
 }
 
 .notes-critic-no-rules {
@@ -654,18 +684,12 @@ If your plugin does not need CSS, delete this file.
     font-size: 0.9em;
 }
 
-/* Model Selector Styles */
+/* Model Selector */
 .notes-critic-model-selector {
     border-top: 1px solid var(--background-modifier-border);
     padding: 12px 8px 8px 8px;
     margin-top: auto;
     background: var(--background-primary);
-}
-
-.notes-critic-model-selector .setting-item {
-    border: none;
-    padding: 0;
-    margin: 0;
 }
 
 .notes-critic-model-selector .setting-item-info {
@@ -687,4 +711,152 @@ If your plugin does not need CSS, delete this file.
 .notes-critic-model-selector .dropdown {
     min-width: 140px;
     font-size: 0.85em;
+}
+
+/* MCP Servers */
+.notes-critic-mcp-servers-title {
+    font-size: 1.1em;
+    font-weight: 600;
+    color: var(--text-normal);
+}
+
+.notes-critic-mcp-servers-list {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.notes-critic-empty-state {
+    text-align: center;
+    color: var(--text-muted);
+    font-style: italic;
+    padding: 20px;
+    background: var(--background-primary);
+    border-radius: 4px;
+    border: 1px dashed var(--background-modifier-border);
+}
+
+.notes-critic-mcp-server-title {
+    font-weight: 500;
+    color: var(--text-normal);
+    font-size: 1em;
+}
+
+.notes-critic-mcp-server-actions {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.notes-critic-mcp-server-actions label {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 0.9em;
+    color: var(--text-muted);
+    cursor: pointer;
+}
+
+.notes-critic-mcp-server-actions input[type="checkbox"] {
+    margin: 0;
+}
+
+.notes-critic-mcp-server-details {
+    padding: 16px;
+}
+
+.notes-critic-mcp-server-details .setting-item {
+    border: none;
+    padding: 8px 0;
+}
+
+.notes-critic-mcp-server-details .setting-item:not(:last-child) {
+    border-bottom: 1px solid var(--background-modifier-border-hover);
+}
+
+.notes-critic-mcp-server-details .setting-item-name {
+    font-size: 0.9em;
+    font-weight: 500;
+}
+
+.notes-critic-mcp-server-details .setting-item-description {
+    font-size: 0.8em;
+    color: var(--text-muted);
+}
+
+/* Tools Overview */
+.notes-critic-tools-section {
+    margin-bottom: 16px;
+    border: 1px solid var(--background-modifier-border);
+    border-radius: 6px;
+    overflow: hidden;
+}
+
+.notes-critic-tools-section:last-child {
+    margin-bottom: 0;
+}
+
+.notes-critic-tools-section-summary {
+    font-size: 1em;
+    font-weight: 600;
+    color: var(--text-normal);
+    padding: 12px 16px;
+    margin: 0;
+    background: var(--background-primary);
+    cursor: pointer;
+    border-bottom: 1px solid var(--background-modifier-border);
+    transition: background-color 0.2s ease;
+}
+
+.notes-critic-tools-section-summary:hover {
+    background: var(--background-modifier-hover);
+}
+
+.notes-critic-tools-section[open] .notes-critic-tools-section-summary {
+    border-bottom: 1px solid var(--background-modifier-border);
+}
+
+.notes-critic-simple-tool-item {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 8px 16px;
+    border-bottom: 1px solid var(--background-modifier-border-hover);
+}
+
+.notes-critic-simple-tool-item:last-child {
+    border-bottom: none;
+}
+
+.notes-critic-tool-checkbox {
+    margin: 0;
+    flex-shrink: 0;
+}
+
+.notes-critic-tool-checkbox:disabled {
+    opacity: 0.6;
+}
+
+.notes-critic-tool-name {
+    font-weight: 500;
+    color: var(--text-normal);
+    min-width: 150px;
+    flex-shrink: 0;
+}
+
+.notes-critic-tool-description {
+    color: var(--text-muted);
+    font-size: 0.9em;
+    flex: 1;
+}
+
+/* Responsive */
+@media (max-width: 400px) {
+    .notes-critic-controls {
+        flex-direction: column;
+    }
+
+    .notes-critic-message-input-container {
+        padding: 0.5rem;
+    }
 }

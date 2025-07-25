@@ -1,6 +1,6 @@
 import { jest, describe, it, expect, beforeEach, afterEach } from '@jest/globals';
 import NotesCritic from '../src/main';
-import { DEFAULT_SETTINGS } from '../src/types';
+import { DEFAULT_SETTINGS } from '../src/constants';
 import { CHAT_VIEW_CONFIG } from '../src/types';
 import { Notice } from 'obsidian';
 
