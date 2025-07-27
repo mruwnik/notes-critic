@@ -192,6 +192,7 @@ export abstract class BaseMCPClient {
     abstract getServerConfig(): MCPServerConfig;
     abstract getApiKey(): string | null;
     abstract getTools(forceRefresh?: boolean): Promise<Tool[]>;
+    abstract hasTool(toolName: string): Promise<boolean>;
     abstract toolCall(toolName: string, args: Record<string, any>): Promise<any>;
     abstract testConnection(): Promise<boolean>;
 }

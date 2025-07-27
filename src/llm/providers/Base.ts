@@ -56,8 +56,6 @@ export abstract class BaseLLMProvider {
                 this.settings.enabledTools
             );
 
-            console.log('enabledTools', this.settings.enabledTools)
-            console.log('config', config.body);
             const response = this.streamResponse(config);
             let fullResponse = '';
 
@@ -366,11 +364,12 @@ export abstract class BaseLLMProvider {
                     type: 'chat_message',
                     message: '',
                     prompt: `Please come up with a title for the following conversation in up to 30 characters.
-                    The title should be a single sentence that captures the essence of the conversation.
+                    The title should be a single sentence that captures the essence of the whole conversation.
                     The title should be in the same language as the conversation.
                     The title should be a single sentence that captures the essence of the conversation.
 
                     Please return only the title, no other text.
+                    It's very important that the title is no more than 30 characters - any more will be truncated
 
             ${history}`
                 },
@@ -380,7 +379,7 @@ export abstract class BaseLLMProvider {
         ]
         for await (const chunk of this.callLLM(titleConversation, "You're an expert at coming up with titles for conversations")) {
             if (chunk.type === 'content' && chunk.isComplete) {
-                return chunk.content;
+                return chunk.content.trim().slice(0, 60);
             }
         }
         return '';

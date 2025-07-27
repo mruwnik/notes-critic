@@ -105,6 +105,11 @@ export class MCPClient extends BaseMCPClient {
         throw new Error('No response from MCP server');
     }
 
+    public async hasTool(toolName: string): Promise<boolean> {
+        const tools = await this.getTools(true);
+        return tools.some(tool => tool.name === toolName);
+    }
+
     public async toolCall(toolName: string, args: Record<string, any>): Promise<any> {
         const response = await this.makeRequest(`${toolName}`, {
             body: {

@@ -8,10 +8,12 @@ import AnthropicProvider from 'llm/providers/Anthropic';
 
 // Factory function and main export
 export class LLMProvider {
+    private settings: NotesCriticSettings;
     private provider: BaseLLMProvider;
     private app: App;
 
     constructor(settings: NotesCriticSettings, app: App) {
+        this.settings = settings;
         this.provider = this.createProvider(settings, app);
         this.app = app;
     }
@@ -31,15 +33,22 @@ export class LLMProvider {
     }
 
     async runToolCall({ toolCall }: LLMStreamChunk): Promise<any> {
+        if (!toolCall?.name) {
+            return;
+        }
         switch (toolCall?.name) {
             case 'str_replace_based_edit_tool':
                 const textEditorTool = new TextEditorTool(this.app);
                 return textEditorTool.executeCommand(toolCall?.input as TextEditorCommand)
             case 'web_browser':
                 return fetchPage(toolCall?.input as string)
-            default:
-                throw new Error(`Unsupported tool call: ${toolCall?.name}`);
         }
+        for (const client of this.settings.mcpClients) {
+            if (await client.hasTool(toolCall?.name)) {
+                return client.toolCall(toolCall?.name, toolCall?.input)
+            }
+        }
+        throw new Error(`Unsupported tool call: ${toolCall?.name}`);
     }
 
     async *callLLM(messages: ConversationTurn[], systemPrompt?: string): AsyncGenerator<LLMStreamChunk, void, unknown> {

@@ -1,94 +1,147 @@
-# Obsidian Sample Plugin
+# Notes Critic
 
-This is a sample plugin for Obsidian (https://obsidian.md).
+An intelligent note analysis and feedback system for Obsidian that automatically analyzes your writing and provides AI-powered suggestions to improve your notes.
 
-This project uses TypeScript to provide type checking and documentation.
-The repo depends on the latest plugin API (obsidian.d.ts) in TypeScript Definition format, which contains TSDoc comments describing what it does.
+## Features
 
-This sample plugin demonstrates some of the basic functionality the plugin API can do.
-- Adds a ribbon icon, which shows a Notice when clicked.
-- Adds a command "Open Sample Modal" which opens a Modal.
-- Adds a plugin setting tab to the settings page.
-- Registers a global click event and output 'click' to the console.
-- Registers a global interval which logs 'setInterval' to the console.
+### AI-Powered Note Analysis
 
-## First time developing plugins?
+- Automatically detects changes to your notes and provides contextual feedback
+- Supports multiple AI providers: Anthropic Claude and OpenAI
+- Uses advanced language models to analyze writing style, clarity, and content
 
-Quick starting guide for new plugin devs:
+### Smart Feedback System
 
-- Check if [someone already developed a plugin for what you want](https://obsidian.md/plugins)! There might be an existing plugin similar enough that you can partner up with.
-- Make a copy of this repo as a template with the "Use this template" button (login to GitHub if you don't see it).
-- Clone your repo to a local development folder. For convenience, you can place this folder in your `.obsidian/plugins/your-plugin-name` folder.
-- Install NodeJS, then run `npm i` in the command line under your repo folder.
-- Run `npm run dev` to compile your plugin from `main.ts` to `main.js`.
-- Make changes to `main.ts` (or create new `.ts` files). Those changes should be automatically compiled into `main.js`.
-- Reload Obsidian to load the new version of your plugin.
-- Enable plugin in settings window.
-- For updates to the Obsidian API run `npm update` in the command line under your repo folder.
+- **Auto-trigger**: Automatically provides feedback when notes reach a configurable change threshold
+- **Manual feedback**: Generate feedback on-demand for any note
+- **Diff analysis**: Tracks changes between versions and focuses feedback on recent modifications
+- **Cooldown periods**: Prevents feedback spam with configurable delays between analyses
 
-## Releasing new releases
+### Rule-Based Configuration
 
-- Update your `manifest.json` with your new version number, such as `1.0.1`, and the minimum Obsidian version required for your latest release.
-- Update your `versions.json` file with `"new-plugin-version": "minimum-obsidian-version"` so older versions of Obsidian can download an older version of your plugin that's compatible.
-- Create new GitHub release using your new version number as the "Tag version". Use the exact version number, don't include a prefix `v`. See here for an example: https://github.com/obsidianmd/obsidian-sample-plugin/releases
-- Upload the files `manifest.json`, `main.js`, `styles.css` as binary attachments. Note: The manifest.json file must be in two places, first the root path of your repository and also in the release.
-- Publish the release.
+- Define custom rules for different file types and patterns
+- Configure different feedback prompts, models, and thresholds per rule
+- Support for glob patterns to match specific files or directories
+- Priority-based rule system for complex configurations
 
-> You can simplify the version bump process by running `npm version patch`, `npm version minor` or `npm version major` after updating `minAppVersion` manually in `manifest.json`.
-> The command will bump version in `manifest.json` and `package.json`, and add the entry for the new version to `versions.json`
+### Integrated Chat Interface
 
-## Adding your plugin to the community plugin list
+- Dedicated chat view within Obsidian for AI interactions
+- Real-time streaming responses with thinking process visibility
+- Conversation history management and recall
+- File attachment support for context-aware discussions
 
-- Check the [plugin guidelines](https://docs.obsidian.md/Plugins/Releasing/Plugin+guidelines).
-- Publish an initial version.
-- Make sure you have a `README.md` file in the root of your repo.
-- Make a pull request at https://github.com/obsidianmd/obsidian-releases to add your plugin.
+### Advanced Configuration
 
-## How to use
+- **Multiple Models**: Switch between different AI models for various tasks
+- **Token Management**: Configure max tokens, history limits, and thinking budgets
+- **MCP Integration**: Support for Model Context Protocol for extended functionality
+- **Custom Prompts**: Fully customizable system and feedback prompts
 
-- Clone this repo.
-- Make sure your NodeJS is at least v16 (`node --version`).
-- `npm i` or `yarn` to install dependencies.
-- `npm run dev` to start compilation in watch mode.
+## Getting Started
 
-## Manually installing the plugin
+### Installation
 
-- Copy over `main.js`, `styles.css`, `manifest.json` to your vault `VaultFolder/.obsidian/plugins/your-plugin-id/`.
+1. Download the latest release from the GitHub releases page
+2. Extract the files to your vault's `.obsidian/plugins/notes-critic/` folder
+3. Enable the plugin in Obsidian's Community Plugins settings
 
-## Improve code quality with eslint (optional)
-- [ESLint](https://eslint.org/) is a tool that analyzes your code to quickly find problems. You can run ESLint against your plugin to find common bugs and ways to improve your code. 
-- To use eslint with this project, make sure to install eslint from terminal:
-  - `npm install -g eslint`
-- To use eslint to analyze this project use this command:
-  - `eslint main.ts`
-  - eslint will then create a report with suggestions for code improvement by file and line number.
-- If your source code is in a folder, such as `src`, you can use eslint with this command to analyze all files in that folder:
-  - `eslint .\src\`
+### Initial Setup
 
-## Funding URL
+1. **Configure AI Provider**: Add your API key for Anthropic Claude or OpenAI in the plugin settings
+2. **Choose Model**: Select your preferred AI model from the available options
+3. **Set Feedback Threshold**: Configure how many changed paragraphs trigger automatic feedback (default: 3)
+4. **Customize Prompts**: Adjust the system and feedback prompts to match your writing goals
 
-You can include funding URLs where people who use your plugin can financially support it.
+### Basic Usage
 
-The simple way is to set the `fundingUrl` field to your link in your `manifest.json` file:
+1. **Open Notes Critic**: Click the chat icon in the ribbon or use the command palette
+2. **Start Writing**: The plugin automatically tracks changes to your active notes
+3. **Get Feedback**: Feedback is triggered automatically based on your settings, or click "Get Feedback" manually
+4. **Review Suggestions**: Read the AI analysis and suggestions in the chat interface
+5. **Iterate**: Make improvements and continue the feedback cycle
 
-```json
-{
-    "fundingUrl": "https://buymeacoffee.com"
-}
+## Configuration
+
+### Global Settings
+
+- **Feedback Threshold**: Number of changes before auto-triggering feedback
+- **Cooldown Period**: Minimum time between automatic feedback sessions
+- **Model Selection**: Choose your preferred AI model
+- **Token Limits**: Configure maximum tokens and conversation history length
+
+### Rule System
+
+Create custom rules in your vault's `.notes-critic/rules/` directory, e.g.:
+
+```markdown
+---
+name: "Academic Papers"
+enabled: true
+priority: 10
+globs: ["papers/*.md", "research/**/*.md"]
+feedbackThreshold: 5
+feedbackCooldownSeconds: 60
+model: "anthropic/claude-3-sonnet-20240229"
+---
+
+Focus on academic writing style, citation accuracy, and argument structure.
+Emphasize clarity and logical flow between sections.
 ```
 
-If you have multiple URLs, you can also do:
+You can create multiple `.notes-critic/rules/` directories - the ones closer to the current file have priority. Obsidian doesn't see hidden files, that is files/folders with a dot as the first character of their name, so you'll have to make them with a different text editor.
 
-```json
-{
-    "fundingUrl": {
-        "Buy Me a Coffee": "https://buymeacoffee.com",
-        "GitHub Sponsor": "https://github.com/sponsors",
-        "Patreon": "https://www.patreon.com/"
-    }
-}
-```
+The rules files should consist of an optional settings section in the beginning of the file, after which you provide the prompt that should be sent to the AI.
 
-## API Documentation
+Each setting has a vault-wide default value that can be set in the plugin's settings, which can be overriden by each rules file.
 
-See https://github.com/obsidianmd/obsidian-api
+#### Rules settings
+
+The following settings can be used:
+
+- name - string - this is just for display purposes and can be pretty much anything
+- enabled - true/false - whether to use this rule
+- priority - number - the higher the value, the higher the priority, so values from higher priority rules will override lower priority ones.
+- feedbackThreshold - number - how many paragraphs need to be added/removed before the AI is called
+- feedbackCooldownSeconds - number - how many seconds to wait between sending diffs to the AI
+- model - string - which AI model to use
+- globs - list[string] - a list of file globs to match files to - only files that match at least one string in the list will have this rule applied to them
+- exclude - list[string] - list of file globs to exclude from this rule - any file that matches one of these globs will be ignored by this rule
+
+#### Prompt macros
+
+You can use the following macros in rule prompts:
+
+- ${notePath} - the path to the current note
+- ${noteTitle} - the title of the current note
+- ${diff} - the changes added/removed since the last AI call
+
+### Tools
+
+There are a couple of default tools implemented:
+
+- str_replace_based_edit_tool - this is [Anthropic's file edit tool](https://docs.anthropic.com/en/docs/agents-and-tools/tool-use/text-editor-tool), but it's also been implemented for other AI providers.
+- browser - basic utilities for viewing websites
+
+#### MCP Integration
+
+You can add more tools via MCP. Currently only remote servers are supported. Feel free to either bug me to implement local ones, or do it yourself :)
+
+## Logs
+
+Each conversation is logged to a file in `.notes-critic/conversations` (you can change this in the settings) as a json file with a autogenerated title and the full conversation history. There is a select element at the top of the chat panel that can be used to go back to previous conversations.
+
+## Privacy and Data
+
+This is something I take seriously, and is one of the main reasons I made this plugin in the first place (the other was MCP integration). Your data belong to you:
+
+- All API calls are made directly from your device to the configured AI providers
+- No data is stored on external servers by this plugin
+- Conversation history is stored locally in your vault
+- You maintain full control over your data and can delete conversation logs at any time
+
+## Requirements
+
+- Obsidian v1.0.0 or higher
+- API key for at least one supported AI provider (Anthropic Claude or OpenAI)
+- Internet connection for AI model access

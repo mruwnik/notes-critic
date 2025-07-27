@@ -181,7 +181,6 @@ export class FeedbackDisplay {
             },
             onCancel: () => {
                 // Clean up the input and restore original content
-                input.destroy();
                 contentEl.innerHTML = originalContent;
             }
         });

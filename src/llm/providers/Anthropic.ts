@@ -54,7 +54,6 @@ export class AnthropicProvider extends BaseLLMProvider {
         const extras: any = { tools: availableTools }
 
         const extractTools = (client: MCPClient) => {
-            console.log('client', client.tools)
             const tools = client.tools.map(tool => tool.name).filter(tool => enabledTools.includes(tool))
             if (tools.length === 0) {
                 return null

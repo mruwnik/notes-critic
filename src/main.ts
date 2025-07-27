@@ -5,10 +5,13 @@ import { NotesCriticSettingsTab } from 'settings/SettingsTab';
 import { OAuthClient } from 'llm/oauthClient';
 import { MCP_AUTH_CALLBACK, DEFAULT_SETTINGS } from './constants';
 import { MCPClient, MCPManager } from 'llm/mcpClient';
+import { ModelSelector } from 'views/components/ModelSelector';
 
 export default class NotesCritic extends Plugin {
     settings: NotesCriticSettings;
     mcpManager: MCPManager;
+    private statusBarItem: HTMLElement | null = null;
+    private statusBarModelSelector: ModelSelector | null = null;
 
     async activateView() {
         const { workspace } = this.app;
@@ -72,6 +75,46 @@ export default class NotesCritic extends Plugin {
         );
 
         this.addSettingTab(new NotesCriticSettingsTab(this.app, this));
+
+        // Listen for view state changes to show/hide status bar
+        this.registerEvent(
+            this.app.workspace.on('layout-change', () => {
+                this.updateStatusBarVisibility();
+            })
+        );
+    }
+
+    showStatusBarModelSelector(): void {
+        if (!this.statusBarItem) {
+            this.statusBarItem = this.addStatusBarItem();
+            this.statusBarItem.addClass('notes-critic-status-bar-model-selector');
+            this.statusBarModelSelector = new ModelSelector(
+                this.statusBarItem,
+                this,
+                "",
+                "Select AI model",
+                'model'
+            );
+        }
+    }
+
+    hideStatusBarModelSelector(): void {
+        if (this.statusBarItem) {
+            this.statusBarModelSelector?.destroy();
+            this.statusBarModelSelector = null;
+            this.statusBarItem.remove();
+            this.statusBarItem = null;
+        }
+    }
+
+    updateStatusBarVisibility(): void {
+        const chatViewOpen = this.app.workspace.getLeavesOfType(CHAT_VIEW_CONFIG.type).length > 0;
+
+        if (chatViewOpen && !this.statusBarItem) {
+            this.showStatusBarModelSelector();
+        } else if (!chatViewOpen && this.statusBarItem) {
+            this.hideStatusBarModelSelector();
+        }
     }
 
     async triggerFeedbackForCurrentNote() {
@@ -87,7 +130,7 @@ export default class NotesCritic extends Plugin {
     }
 
     onunload() {
-        // Cleanup if needed
+        this.hideStatusBarModelSelector();
     }
 
     async loadSettings() {
@@ -101,12 +144,9 @@ export default class NotesCritic extends Plugin {
     }
 
     private refreshChatViewModelSelectors() {
-        const leaves = this.app.workspace.getLeavesOfType(CHAT_VIEW_CONFIG.type);
-        leaves.forEach(leaf => {
-            const view = leaf.view as any;
-            if (view && typeof view.refreshModelSelector === 'function') {
-                view.refreshModelSelector();
-            }
-        });
+        // Refresh status bar model selector instead of chat input selectors
+        if (this.statusBarModelSelector) {
+            this.statusBarModelSelector.updateModel(this.settings.model);
+        }
     }
 }

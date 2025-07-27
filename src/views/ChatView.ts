@@ -73,10 +73,24 @@ export class ChatView extends ItemView {
             container,
             this.rerunConversationTurn.bind(this),
         );
+
+        let userInput = ''
         this.chatInput = new ChatInput(container, {
-            onSend: this.sendChatMessage.bind(this),
-            plugin: this.plugin
+            onSend: async (message: string) => {
+                userInput = message;
+                this.cancelInference('');
+                await this.sendChatMessage(message);
+            },
+            onCancel: () => {
+                this.cancelInference(userInput);
+            }
         });
+    }
+
+    private async cancelInference(userInput: string) {
+        this.conversationManager.cancelInference();
+        this.chatInput.setValue(userInput);
+        this.updateUI();
     }
 
     private async loadHistory(id: string) {
@@ -96,8 +110,6 @@ export class ChatView extends ItemView {
         this.registerEvent(
             this.app.workspace.on('active-leaf-change', () => {
                 this.updateActiveFile();
-                // Refresh model selector when switching back to chat view in case settings changed
-                this.refreshModelSelector();
             })
         );
 
@@ -110,13 +122,6 @@ export class ChatView extends ItemView {
                 if (file instanceof TFile && file === this.currentFile) {
                     this.onFileModified(file);
                 }
-            })
-        );
-
-        // Listen for layout changes which can indicate settings modal closing
-        this.registerEvent(
-            this.app.workspace.on('layout-change', () => {
-                this.refreshModelSelector();
             })
         );
     }
@@ -143,11 +148,9 @@ export class ChatView extends ItemView {
             }
             this.controlPanel.updateHistory(history, current.id);
         });
-        this.feedbackDisplay.redisplayConversation(this.conversationManager.getConversation());
-    }
-
-    private refreshModelSelector() {
-        this.chatInput?.refreshModelSelector();
+        this.feedbackDisplay.redisplayConversation(
+            this.conversationManager.getConversation()
+        );
     }
 
     private async currentConfig(): Promise<NotesCriticSettings | undefined> {
@@ -234,7 +237,8 @@ export class ChatView extends ItemView {
 
         const feedbackPrompt = await this.ruleManager.getFeedbackPrompt(this.currentFile.path, this.plugin.settings);
         const prompt = feedbackPrompt
-            .replace(/\${noteName}/g, this.currentFile.path)
+            .replace(/\${notePath}/g, this.currentFile.path)
+            .replace(/\${noteTitle}/g, this.currentFile.basename)
             .replace(/\${diff}/g, diff);
 
         const files = [{
