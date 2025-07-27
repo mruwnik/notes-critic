@@ -2,8 +2,12 @@ import { jest, describe, it, expect, beforeEach, afterEach } from '@jest/globals
 import { MCPClient, Tool } from '../../src/llm/mcpClient';
 import { NotesCriticSettings, DEFAULT_SETTINGS } from '../../src/types';
 
-// Mock dependencies
-jest.mock('../../src/llm/streaming');
+// Create proper async generator mock
+const mockStreamFromEndpoint = jest.fn();
+
+jest.mock('../../src/llm/streaming', () => ({
+  streamFromEndpoint: mockStreamFromEndpoint
+}));
 
 describe('MCPClient', () => {
   let client: MCPClient;
@@ -27,6 +31,11 @@ describe('MCPClient', () => {
       length: 0,
       key: jest.fn()
     } as any;
+
+    // Set up default mock implementation for streamFromEndpoint
+    mockStreamFromEndpoint.mockImplementation(async function* () {
+      // Default empty generator
+    });
 
     mockSettings = {
       ...DEFAULT_SETTINGS,

@@ -85,8 +85,13 @@ describe('OAuthClient', () => {
     });
 
     it('should load existing tokens from localStorage', () => {
+      // Set up localStorage data before creating the client
       mockLocalStorage[`oauth_access_token_${serverUrl}`] = 'stored-access-token';
       mockLocalStorage[`oauth_refresh_token_${serverUrl}`] = 'stored-refresh-token';
+      
+      // Verify the mock localStorage is returning the values
+      expect(global.localStorage.getItem(`oauth_access_token_${serverUrl}`)).toBe('stored-access-token');
+      expect(global.localStorage.getItem(`oauth_refresh_token_${serverUrl}`)).toBe('stored-refresh-token');
       
       const tokenClient = new OAuthClient(serverUrl);
       

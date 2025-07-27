@@ -2,9 +2,9 @@
 
 An intelligent note analysis and feedback system for Obsidian that automatically analyzes your writing and provides AI-powered suggestions to improve your notes.
 
-## Features
-
 ![chat view](docs/chat.png)
+
+## Features
 
 ### AI-Powered Note Analysis
 

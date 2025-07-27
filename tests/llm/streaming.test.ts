@@ -208,7 +208,7 @@ describe('Streaming Module', () => {
       });
 
       const generator = callRequestUrl(config);
-      await expect(generator.next()).rejects.toThrow('HTTP 404: Not Found');
+      await expect(generator.next()).rejects.toThrow('Request failed: 404 - Not Found');
     });
 
     it('should handle network errors', async () => {
@@ -262,7 +262,9 @@ describe('Streaming Module', () => {
         '{"type": "end", "data": "finish"}'
       ];
 
-      (requestUrl as jest.Mock).mockResolvedValue({
+      const mockRequestUrl = requestUrl as jest.Mock;
+      mockRequestUrl.mockClear();
+      mockRequestUrl.mockResolvedValue({
         status: 200,
         text: jsonLines.join('\n') + '\n'
       });
