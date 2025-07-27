@@ -4,6 +4,8 @@ An intelligent note analysis and feedback system for Obsidian that automatically
 
 ## Features
 
+![chat view](docs/chat.png)
+
 ### AI-Powered Note Analysis
 
 - Automatically detects changes to your notes and provides contextual feedback
@@ -70,6 +72,17 @@ An intelligent note analysis and feedback system for Obsidian that automatically
 - **Model Selection**: Choose your preferred AI model
 - **Token Limits**: Configure maximum tokens and conversation history length
 
+### Tools
+
+There are a couple of default tools implemented:
+
+- str_replace_based_edit_tool - this is [Anthropic's file edit tool](https://docs.anthropic.com/en/docs/agents-and-tools/tool-use/text-editor-tool), but it's also been implemented for other AI providers.
+- browser - basic utilities for viewing websites
+
+#### MCP Integration
+
+You can add more tools via MCP. Currently only remote servers are supported. Feel free to either bug me to implement local ones, or do it yourself :)
+
 ### Rule System
 
 Create custom rules in your vault's `.notes-critic/rules/` directory, e.g.:
@@ -115,17 +128,6 @@ You can use the following macros in rule prompts:
 - ${notePath} - the path to the current note
 - ${noteTitle} - the title of the current note
 - ${diff} - the changes added/removed since the last AI call
-
-### Tools
-
-There are a couple of default tools implemented:
-
-- str_replace_based_edit_tool - this is [Anthropic's file edit tool](https://docs.anthropic.com/en/docs/agents-and-tools/tool-use/text-editor-tool), but it's also been implemented for other AI providers.
-- browser - basic utilities for viewing websites
-
-#### MCP Integration
-
-You can add more tools via MCP. Currently only remote servers are supported. Feel free to either bug me to implement local ones, or do it yourself :)
 
 ## Logs
 

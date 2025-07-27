@@ -448,4 +448,25 @@ export class OAuthClient {
             throw error;
         }
     }
+
+    /**
+     * Get the current access token
+     */
+    public getAccessToken(): string | null {
+        return this.accessToken;
+    }
+
+    /**
+     * Check if the client is authenticated
+     */
+    public isAuthenticated(): boolean {
+        return this.accessToken !== null;
+    }
+
+    /**
+     * Alias for discoverServerMetadata for backward compatibility
+     */
+    public async discoverServer(): Promise<OAuthServerMetadata> {
+        return this.discoverServerMetadata();
+    }
 } 

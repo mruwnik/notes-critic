@@ -16,7 +16,9 @@ describe('OAuthClient', () => {
   beforeEach(() => {
     // Mock localStorage
     mockLocalStorage = {};
-    global.localStorage = {
+    
+    // Create proper localStorage mock
+    const localStorageMock = {
       getItem: jest.fn((key: string) => mockLocalStorage[key] || null),
       setItem: jest.fn((key: string, value: string) => {
         mockLocalStorage[key] = value;
@@ -27,6 +29,18 @@ describe('OAuthClient', () => {
       clear: jest.fn(() => {
         mockLocalStorage = {};
       }),
+      length: 0,
+      key: jest.fn()
+    } as any;
+
+    global.localStorage = localStorageMock;
+
+    // Mock sessionStorage too
+    global.sessionStorage = {
+      getItem: jest.fn(),
+      setItem: jest.fn(),  
+      removeItem: jest.fn(),
+      clear: jest.fn(),
       length: 0,
       key: jest.fn()
     } as any;

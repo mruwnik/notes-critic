@@ -10,8 +10,6 @@ const DIFF_CLASSES = {
     context: 'diff-context',
 } as const;
 
-
-
 export const truncateText = (text: string, maxLength: number): string => {
     return text.length > maxLength ? text.substring(0, maxLength) + '...' : text;
 }
@@ -19,27 +17,34 @@ export const truncateText = (text: string, maxLength: number): string => {
 export const formatDiff = (diff: string): string => {
     if (!diff) return '';
 
-    const lineFormatters = [
-        { prefix: '@@', class: DIFF_CLASSES.hunk },
-        { prefix: ['+++', '---'], class: DIFF_CLASSES.header },
-        { prefix: '+', class: DIFF_CLASSES.added },
-        { prefix: '-', class: DIFF_CLASSES.removed },
-        { prefix: '\\', class: DIFF_CLASSES.meta },
-    ];
+    const lines = diff.split('\n');
 
     const formatLine = (line: string): string => {
-        const formatter = lineFormatters.find(f =>
-            Array.isArray(f.prefix)
-                ? f.prefix.some(p => line.startsWith(p))
-                : line.startsWith(f.prefix)
-        );
+        // Handle empty lines
+        if (line.trim() === '') {
+            return `<div class="${DIFF_CLASSES.context}">&nbsp;</div>`;
+        }
 
-        const className = formatter?.class || DIFF_CLASSES.context;
-        return `<span class="${className}">${escapeHtml(line)}</span>`;
+        // Match diff patterns more precisely
+        let className: string = DIFF_CLASSES.context;
+
+        if (line.startsWith('@@') && line.includes('@@')) {
+            className = DIFF_CLASSES.hunk;
+        } else if (line.startsWith('+++') || line.startsWith('---')) {
+            className = DIFF_CLASSES.header;
+        } else if (line.startsWith('+') && !line.startsWith('+++')) {
+            className = DIFF_CLASSES.added;
+        } else if (line.startsWith('-') && !line.startsWith('---')) {
+            className = DIFF_CLASSES.removed;
+        } else if (line.startsWith('\\')) {
+            className = DIFF_CLASSES.meta;
+        }
+
+        return `<div class="${className}">${escapeHtml(line)}</div>`;
     };
 
-    const formattedLines = diff.split('\n').map(formatLine);
-    return `<div class="${DIFF_CLASSES.container}">${formattedLines.join('<br/>')}</div>`;
+    const formattedLines = lines.map(formatLine).join('');
+    return `<div class="${DIFF_CLASSES.container}">${formattedLines}</div>`;
 }
 
 export const escapeHtml = (text: string): string => {

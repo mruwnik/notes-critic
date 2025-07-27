@@ -5,7 +5,7 @@ export const DEFAULT_SETTINGS = {
     feedbackThreshold: 3,
     feedbackCooldownSeconds: 30,
     systemPrompt: 'You are a helpful writing assistant. Provide constructive feedback on notes.',
-    feedbackPrompt: `Please provide feedback on the changes made to "\${noteName}".
+    feedbackPrompt: `Please provide feedback on the changes made to "\${notePath}".
 
 The current note content is attached as a file for context.
 

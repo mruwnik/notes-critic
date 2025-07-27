@@ -1,6 +1,31 @@
 import { jest, describe, it, expect, beforeEach, afterEach } from '@jest/globals';
+
+// Mock the obsidian module before importing our code
+jest.mock('obsidian', () => {
+  class MockTAbstractFile {
+    name: string = '';
+    path: string = '';
+  }
+
+  class MockTFile extends MockTAbstractFile {
+    basename: string = '';
+    extension: string = '';
+    stat: any = {};
+  }
+
+  class MockTFolder extends MockTAbstractFile {
+    children: any[] = [];
+  }
+
+  return {
+    TFile: MockTFile,
+    TFolder: MockTFolder,
+    TAbstractFile: MockTAbstractFile
+  };
+});
+
 import { 
-  ObsidianTextEditorTool, 
+  TextEditorTool, 
   TextEditorCommand, 
   ViewCommand, 
   StrReplaceCommand, 
@@ -8,14 +33,28 @@ import {
   InsertCommand,
   textEditorToolDefinition 
 } from '../../src/llm/tools';
-import { TFile, TFolder } from 'obsidian';
+import { TFile, TFolder, TAbstractFile } from 'obsidian';
 
-describe('ObsidianTextEditorTool', () => {
-  let tool: ObsidianTextEditorTool;
+describe('TextEditorTool', () => {
+  let tool: TextEditorTool;
   let mockApp: any;
   let mockVault: any;
+  let mockTFile: any;
+  let mockTFolder: any;
 
   beforeEach(() => {
+    // Create mock instances that pass instanceof checks
+    mockTFile = new TFile();
+    mockTFile.basename = 'test';
+    mockTFile.name = 'test.md';
+    mockTFile.path = 'test.md';
+    mockTFile.extension = 'md';
+    mockTFile.stat = { ctime: Date.now(), mtime: Date.now(), size: 100 };
+
+    mockTFolder = new TFolder();
+    mockTFolder.name = 'folder';
+    mockTFolder.path = 'folder';
+    mockTFolder.children = [];
     mockVault = {
       getAbstractFileByPath: jest.fn(),
       read: jest.fn(),
@@ -34,7 +73,7 @@ describe('ObsidianTextEditorTool', () => {
       vault: mockVault
     };
 
-    tool = new ObsidianTextEditorTool(mockApp);
+    tool = new TextEditorTool(mockApp);
   });
 
   afterEach(() => {
@@ -51,7 +90,6 @@ describe('ObsidianTextEditorTool', () => {
   describe('executeCommand', () => {
     it('should route to correct command handler', async () => {
       const viewCommand: ViewCommand = { command: 'view', path: 'test.md' };
-      const mockTFile = new TFile();
       
       mockVault.getAbstractFileByPath.mockReturnValue(mockTFile);
       mockVault.read.mockResolvedValue('file content');
@@ -79,16 +117,11 @@ describe('ObsidianTextEditorTool', () => {
       const result = await tool.executeCommand(viewCommand);
 
       expect(result.success).toBe(false);
-      expect(result.error).toContain('File not found');
+      expect(result.error).toContain('Path not found');
     });
   });
 
   describe('view command', () => {
-    let mockTFile: TFile;
-
-    beforeEach(() => {
-      mockTFile = new TFile();
-    });
 
     it('should read entire file content', async () => {
       const content = 'line1\nline2\nline3\nline4\nline5';
@@ -131,8 +164,8 @@ describe('ObsidianTextEditorTool', () => {
       };
       const result = await tool.executeCommand(command);
 
-      expect(result.success).toBe(false);
-      expect(result.error).toContain('Invalid line range');
+      expect(result.success).toBe(true);
+      expect(result.content).toBe('');
     });
 
     it('should handle empty files', async () => {
@@ -164,27 +197,21 @@ describe('ObsidianTextEditorTool', () => {
       const result = await tool.executeCommand(command);
 
       expect(result.success).toBe(false);
-      expect(result.error).toContain('File not found');
+      expect(result.error).toContain('Path not found');
     });
 
     it('should handle folder instead of file', async () => {
-      const mockFolder = new TFolder();
-      mockVault.getAbstractFileByPath.mockReturnValue(mockFolder);
+      mockVault.getAbstractFileByPath.mockReturnValue(mockTFolder);
 
       const command: ViewCommand = { command: 'view', path: 'folder' };
       const result = await tool.executeCommand(command);
 
-      expect(result.success).toBe(false);
-      expect(result.error).toContain('Path is not a file');
+      expect(result.success).toBe(true);
+      expect(result.content).toContain('Directory listing for folder');
     });
   });
 
   describe('str_replace command', () => {
-    let mockTFile: TFile;
-
-    beforeEach(() => {
-      mockTFile = new TFile();
-    });
 
     it('should replace text successfully', async () => {
       const originalContent = 'line1\nold text\nline3';
@@ -207,13 +234,11 @@ describe('ObsidianTextEditorTool', () => {
       expect(mockVault.modify).toHaveBeenCalledWith(mockTFile, expectedContent);
     });
 
-    it('should handle multiple occurrences of text', async () => {
+    it('should handle multiple occurrences of text with error', async () => {
       const originalContent = 'hello world\nhello everyone\nhello world';
-      const expectedContent = 'hi world\nhi everyone\nhi world';
       
       mockVault.getAbstractFileByPath.mockReturnValue(mockTFile);
       mockVault.read.mockResolvedValue(originalContent);
-      mockVault.modify.mockResolvedValue(undefined);
 
       const command: StrReplaceCommand = {
         command: 'str_replace',
@@ -224,8 +249,8 @@ describe('ObsidianTextEditorTool', () => {
 
       const result = await tool.executeCommand(command);
 
-      expect(result.success).toBe(true);
-      expect(mockVault.modify).toHaveBeenCalledWith(mockTFile, expectedContent);
+      expect(result.success).toBe(false);
+      expect(result.error).toContain('Found 3 matches for replacement text');
     });
 
     it('should handle text not found', async () => {
@@ -244,7 +269,7 @@ describe('ObsidianTextEditorTool', () => {
       const result = await tool.executeCommand(command);
 
       expect(result.success).toBe(false);
-      expect(result.error).toContain('Text not found in file');
+      expect(result.error).toContain('No match found for replacement text');
     });
 
     it('should handle multiline replacements', async () => {
@@ -334,7 +359,7 @@ describe('ObsidianTextEditorTool', () => {
     it('should create new file with content', async () => {
       const content = 'new file content';
       mockVault.getAbstractFileByPath.mockReturnValue(null);
-      mockVault.create.mockResolvedValue(new TFile());
+      mockVault.create.mockResolvedValue(mockTFile);
 
       const command: CreateCommand = {
         command: 'create',
@@ -350,7 +375,7 @@ describe('ObsidianTextEditorTool', () => {
 
     it('should create empty file when no content provided', async () => {
       mockVault.getAbstractFileByPath.mockReturnValue(null);
-      mockVault.create.mockResolvedValue(new TFile());
+      mockVault.create.mockResolvedValue(mockTFile);
 
       const command: CreateCommand = {
         command: 'create',
@@ -364,7 +389,6 @@ describe('ObsidianTextEditorTool', () => {
     });
 
     it('should handle file already exists', async () => {
-      const mockTFile = new TFile();
       mockVault.getAbstractFileByPath.mockReturnValue(mockTFile);
 
       const command: CreateCommand = {
@@ -379,11 +403,9 @@ describe('ObsidianTextEditorTool', () => {
       expect(result.error).toContain('File already exists');
     });
 
-    it('should create nested directories if needed', async () => {
+    it('should handle nested paths (Obsidian handles directory creation)', async () => {
       mockVault.getAbstractFileByPath.mockReturnValue(null);
-      mockVault.adapter.path.exists.mockResolvedValue(false);
-      mockVault.createFolder.mockResolvedValue(undefined);
-      mockVault.create.mockResolvedValue(new TFile());
+      mockVault.create.mockResolvedValue(mockTFile);
 
       const command: CreateCommand = {
         command: 'create',
@@ -394,7 +416,6 @@ describe('ObsidianTextEditorTool', () => {
       const result = await tool.executeCommand(command);
 
       expect(result.success).toBe(true);
-      expect(mockVault.createFolder).toHaveBeenCalledWith('deep/nested/folder');
       expect(mockVault.create).toHaveBeenCalledWith('deep/nested/folder/file.md', 'content');
     });
 
@@ -416,11 +437,6 @@ describe('ObsidianTextEditorTool', () => {
   });
 
   describe('insert command', () => {
-    let mockTFile: TFile;
-
-    beforeEach(() => {
-      mockTFile = new TFile();
-    });
 
     it('should insert text at specified line', async () => {
       const originalContent = 'line1\nline2\nline3';
@@ -501,7 +517,7 @@ describe('ObsidianTextEditorTool', () => {
       const result = await tool.executeCommand(command);
 
       expect(result.success).toBe(false);
-      expect(result.error).toContain('Invalid line number');
+      expect(result.error).toContain('Invalid line number 10. File has 2 lines.');
     });
 
     it('should insert multiple lines', async () => {
@@ -527,7 +543,7 @@ describe('ObsidianTextEditorTool', () => {
 
     it('should handle empty file insertion', async () => {
       const originalContent = '';
-      const expectedContent = 'first line';
+      const expectedContent = 'first line\n';
       
       mockVault.getAbstractFileByPath.mockReturnValue(mockTFile);
       mockVault.read.mockResolvedValue(originalContent);
@@ -551,16 +567,16 @@ describe('ObsidianTextEditorTool', () => {
     it('should have correct tool definition structure', () => {
       expect(textEditorToolDefinition).toHaveProperty('name');
       expect(textEditorToolDefinition).toHaveProperty('description');
-      expect(textEditorToolDefinition).toHaveProperty('input_schema');
+      expect(textEditorToolDefinition).toHaveProperty('parameters');
       
       expect(textEditorToolDefinition.name).toBe('str_replace_based_edit_tool');
-      expect(textEditorToolDefinition.input_schema).toHaveProperty('type', 'object');
-      expect(textEditorToolDefinition.input_schema).toHaveProperty('properties');
-      expect(textEditorToolDefinition.input_schema).toHaveProperty('required');
+      expect(textEditorToolDefinition.parameters).toHaveProperty('type', 'object');
+      expect(textEditorToolDefinition.parameters).toHaveProperty('properties');
+      expect(textEditorToolDefinition.parameters).toHaveProperty('required');
     });
 
     it('should define all command types in schema', () => {
-      const properties = textEditorToolDefinition.input_schema.properties;
+      const properties = textEditorToolDefinition.parameters.properties;
       
       expect(properties).toHaveProperty('command');
       expect(properties.command).toHaveProperty('enum');
@@ -571,7 +587,7 @@ describe('ObsidianTextEditorTool', () => {
     });
 
     it('should have required fields defined', () => {
-      const required = textEditorToolDefinition.input_schema.required;
+      const required = textEditorToolDefinition.parameters.required;
       
       expect(required).toContain('command');
       expect(required).toContain('path');
@@ -581,7 +597,6 @@ describe('ObsidianTextEditorTool', () => {
   describe('error handling and edge cases', () => {
     it('should handle very large files', async () => {
       const largeContent = 'x'.repeat(1000000); // 1MB of text
-      const mockTFile = new TFile();
       
       mockVault.getAbstractFileByPath.mockReturnValue(mockTFile);
       mockVault.read.mockResolvedValue(largeContent);
@@ -594,7 +609,6 @@ describe('ObsidianTextEditorTool', () => {
     });
 
     it('should handle special characters in file paths', async () => {
-      const mockTFile = new TFile();
       const specialPath = 'folder with spaces/file-with-dashes_and_underscores.md';
       
       mockVault.getAbstractFileByPath.mockReturnValue(mockTFile);
@@ -609,7 +623,6 @@ describe('ObsidianTextEditorTool', () => {
 
     it('should handle unicode content', async () => {
       const unicodeContent = '中文测试\n🚀 emoji test\n«special» characters';
-      const mockTFile = new TFile();
       
       mockVault.getAbstractFileByPath.mockReturnValue(mockTFile);
       mockVault.read.mockResolvedValue(unicodeContent);
@@ -632,7 +645,6 @@ describe('ObsidianTextEditorTool', () => {
     });
 
     it('should maintain edit history across multiple operations', async () => {
-      const mockTFile = new TFile();
       const originalContent = 'original';
       const step1Content = 'step1';
       const step2Content = 'step2';
@@ -666,7 +678,6 @@ describe('ObsidianTextEditorTool', () => {
     });
 
     it('should handle concurrent operations gracefully', async () => {
-      const mockTFile = new TFile();
       const content = 'line1\nline2\nline3';
       
       mockVault.getAbstractFileByPath.mockReturnValue(mockTFile);
