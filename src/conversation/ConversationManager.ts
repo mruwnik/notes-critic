@@ -1,8 +1,22 @@
 import { ConversationTurn, UserInput, TurnStep, LLMStreamChunk, NotesCriticSettings, LLMFile, TurnChunk } from 'types';
 import { App } from 'obsidian';
-import { randomUUID } from 'crypto';
 import { LLMProvider } from 'llm/llmProvider';
 import { History, HistoryManager } from 'conversation/HistoryManager';
+
+// Generic UUID v4 generator that works across environments
+function generateUUID(): string {
+    // Try browser crypto API first
+    if (typeof crypto !== 'undefined' && crypto.randomUUID) {
+        return crypto.randomUUID();
+    }
+
+    // Fallback implementation
+    return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function (c) {
+        const r = Math.random() * 16 | 0;
+        const v = c === 'x' ? r : (r & 0x3 | 0x8);
+        return v.toString(16);
+    });
+}
 
 export interface ConversationChunk {
     type: 'thinking' | 'content' | 'tool_call' | 'tool_call_result' | 'error' | 'step_complete' | 'turn_complete' | 'turn_start' | 'step_start';
@@ -53,7 +67,7 @@ const ABORT_ERROR_MESSAGE = 'Inference was cancelled';
 export class ConversationManager {
     private conversation: ConversationTurn[] = [];
     private turnAbortControllers = new Map<string, AbortController>();
-    public conversationId: string = randomUUID();
+    public conversationId: string = generateUUID();
     private historyManager: HistoryManager;
     public title: string = '';
 
@@ -63,7 +77,7 @@ export class ConversationManager {
         history: History | undefined = undefined
     ) {
         this.conversation = history?.conversation || [];
-        this.conversationId = history?.id || randomUUID();
+        this.conversationId = history?.id || generateUUID();
         this.title = history?.title || '';
         this.historyManager = new HistoryManager(this.settings, this.app);
     }

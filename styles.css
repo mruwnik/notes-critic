@@ -882,3 +882,78 @@ If your plugin does not need CSS, delete this file.
         padding: 0.5rem;
     }
 }
+
+/* API Key Setup UI */
+.notes-critic-api-key-setup {
+    padding: 2rem;
+    text-align: center;
+    max-width: 600px;
+    margin: 0 auto;
+}
+
+.notes-critic-setup-title {
+    color: var(--text-normal);
+    margin-bottom: 1rem;
+    font-size: 1.5em;
+    font-weight: 600;
+}
+
+.notes-critic-setup-description {
+    margin-bottom: 2rem;
+    color: var(--text-muted);
+    line-height: 1.5;
+}
+
+.notes-critic-setup-steps {
+    text-align: left;
+    background: var(--background-secondary);
+    padding: 1.5rem;
+    border-radius: 8px;
+    margin-bottom: 2rem;
+    border: 1px solid var(--background-modifier-border);
+}
+
+.notes-critic-setup-steps h3 {
+    margin-top: 0;
+    margin-bottom: 1rem;
+    color: var(--text-normal);
+    font-size: 1.1em;
+}
+
+.notes-critic-setup-steps ol {
+    padding-left: 1.5rem;
+    line-height: 1.6;
+}
+
+.notes-critic-setup-steps li {
+    margin-bottom: 0.5rem;
+    color: var(--text-normal);
+}
+
+.notes-critic-setup-steps li:last-child {
+    margin-bottom: 0;
+}
+
+.notes-critic-setup-steps strong {
+    color: var(--text-accent);
+    font-weight: 600;
+}
+
+.notes-critic-refresh-button {
+    background: var(--interactive-accent);
+    color: var(--text-on-accent);
+    border: none;
+    padding: 0.75rem 1.5rem;
+    border-radius: 6px;
+    font-size: 0.9em;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    margin-top: 1rem;
+}
+
+.notes-critic-refresh-button:hover {
+    background: var(--interactive-accent-hover);
+    transform: translateY(-1px);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+}

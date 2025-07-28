@@ -5,6 +5,7 @@ import { FeedbackDisplay } from 'views/components/FeedbackDisplay';
 import { ChatInput } from 'views/components/ChatInput';
 import { ControlPanel } from 'views/components/ControlPanel';
 import { FileManager } from 'views/components/FileManager';
+import { ApiKeySetup } from 'views/components/ApiKeySetup';
 import { ConversationManager, ConversationChunk } from 'conversation/ConversationManager';
 import { RuleManager } from 'rules/RuleManager';
 import { HistoryManager } from 'conversation/HistoryManager';
@@ -47,6 +48,16 @@ export class ChatView extends ItemView {
     async onOpen() {
         const container = this.containerEl.children[1];
         container.empty();
+
+        // Check if API key is configured
+        if (!ApiKeySetup.isApiKeyConfigured(this.plugin.settings)) {
+            new ApiKeySetup(
+                container,
+                this.plugin.settings,
+                () => this.onOpen()
+            );
+            return;
+        }
 
         this.buildUI(container);
         this.initializeView();
