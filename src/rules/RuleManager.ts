@@ -1,5 +1,5 @@
 import { App, normalizePath } from 'obsidian';
-import { NotesCriticRule, RuleMatch, NotesCriticSettings, DEFAULT_SETTINGS } from 'types';
+import { NotesCriticRule, RuleMatch, NotesCriticSettings } from 'types';
 import { Minimatch } from 'minimatch';
 
 interface RuleFile {

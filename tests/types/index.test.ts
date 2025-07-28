@@ -1,6 +1,6 @@
 import { jest, describe, it, expect } from '@jest/globals';
+import { DEFAULT_SETTINGS } from '../../src/constants';
 import { 
-  DEFAULT_SETTINGS, 
   CHAT_VIEW_CONFIG,
   NotesCriticSettings,
   ConversationTurn,
@@ -45,7 +45,7 @@ describe('Types and Constants', () => {
     it('should have non-empty prompt templates', () => {
       expect(DEFAULT_SETTINGS.systemPrompt).toBeTruthy();
       expect(DEFAULT_SETTINGS.feedbackPrompt).toBeTruthy();
-      expect(DEFAULT_SETTINGS.feedbackPrompt).toContain('${noteName}');
+      expect(DEFAULT_SETTINGS.feedbackPrompt).toContain('${notePath}');
       expect(DEFAULT_SETTINGS.feedbackPrompt).toContain('${diff}');
     });
   });

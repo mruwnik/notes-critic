@@ -71,6 +71,7 @@ export class HistoryManager {
             return historyFile ? shortItem(JSON.parse(historyFile)) : undefined;
         }
 
-        return (await Promise.all(historyFiles.files.map(extractItem))).filter(item => item !== undefined).filter(item => item.id);
+        const items = await Promise.all(historyFiles.files.map(extractItem));
+        return items.filter(item => item !== undefined && item.id !== undefined) as History[];
     }
 }

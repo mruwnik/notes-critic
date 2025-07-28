@@ -81,6 +81,7 @@ export class ChatInput {
         const message = this.getValue();
         if (message) {
             this.clearInput();
+
             try {
                 await this.options.onSend(message);
             } catch (error) {

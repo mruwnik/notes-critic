@@ -1,6 +1,6 @@
 # Notes Critic
 
-An intelligent note analysis and feedback system for Obsidian that automatically analyzes your writing and provides AI-powered suggestions to improve your notes.
+Yet another AI integration plugin. I wanted something that will automatically criticize my notes after a certain amount of changes. I also wanted it to be a nice interface for my various MCP tools.
 
 ![chat view](docs/chat.png)
 

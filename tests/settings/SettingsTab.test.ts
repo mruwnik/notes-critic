@@ -1,12 +1,261 @@
 import { jest, describe, it, expect, beforeEach, afterEach } from '@jest/globals';
 import { NotesCriticSettingsTab } from '../../src/settings/SettingsTab';
-import { DEFAULT_SETTINGS, NotesCriticSettings } from '../../src/types';
+import { NotesCriticSettings } from '../../src/types';
+import { DEFAULT_SETTINGS } from '../../src/constants';
 
-// Mock dependencies
-jest.mock('../../src/llm/llmProvider');
+// Mock Obsidian classes
+jest.mock('obsidian', () => ({
+  PluginSettingTab: class PluginSettingTab {
+    app: any;
+    plugin: any;
+    containerEl: HTMLElement;
+    constructor(app: any, plugin: any) {
+      this.app = app;
+      this.plugin = plugin;
+      this.containerEl = document.createElement('div');
+    }
+  },
+  Setting: class Setting {
+    containerEl: HTMLElement;
+    constructor(containerEl: HTMLElement) {
+      this.containerEl = containerEl;
+      this.settingEl = document.createElement('div');
+      this.settingEl.className = 'setting-item';
+      containerEl.appendChild(this.settingEl);
+    }
+    settingEl: HTMLElement;
+    setName(name: string) {
+      const nameEl = document.createElement('div');
+      nameEl.className = 'setting-item-name';
+      nameEl.textContent = name;
+      this.settingEl.appendChild(nameEl);
+      return this;
+    }
+    setDesc(desc: string) {
+      const descEl = document.createElement('div');
+      descEl.className = 'setting-item-description';
+      descEl.textContent = desc;
+      this.settingEl.appendChild(descEl);
+      return this;
+    }
+    addText(callback: (text: any) => any) {
+      const textEl = document.createElement('input');
+      textEl.type = 'text';
+      this.settingEl.appendChild(textEl);
+      const textComponent = {
+        inputEl: textEl,
+        setPlaceholder: (placeholder: string) => {
+          textEl.placeholder = placeholder;
+          return textComponent;
+        },
+        setValue: (value: string) => {
+          textEl.value = value;
+          return textComponent;
+        },
+        onChange: (callback: (value: string) => void) => {
+          textEl.addEventListener('input', () => callback(textEl.value));
+          return textComponent;
+        }
+      };
+      callback(textComponent);
+      return this;
+    }
+    addDropdown(callback: (dropdown: any) => any) {
+      const selectEl = document.createElement('select');
+      this.settingEl.appendChild(selectEl);
+      const dropdownComponent = {
+        selectEl,
+        addOption: (value: string, text: string) => {
+          const option = document.createElement('option');
+          option.value = value;
+          option.textContent = text;
+          selectEl.appendChild(option);
+          return dropdownComponent;
+        },
+        setValue: (value: string) => {
+          selectEl.value = value;
+          return dropdownComponent;
+        },
+        onChange: (callback: (value: string) => void) => {
+          selectEl.addEventListener('change', () => callback(selectEl.value));
+          return dropdownComponent;
+        }
+      };
+      callback(dropdownComponent);
+      return this;
+    }
+    addToggle(callback: (toggle: any) => any) {
+      const toggleEl = document.createElement('input');
+      toggleEl.type = 'checkbox';
+      this.settingEl.appendChild(toggleEl);
+      const toggleComponent = {
+        toggleEl,
+        setValue: (value: boolean) => {
+          toggleEl.checked = value;
+          return toggleComponent;
+        },
+        onChange: (callback: (value: boolean) => void) => {
+          toggleEl.addEventListener('change', () => callback(toggleEl.checked));
+          return toggleComponent;
+        }
+      };
+      callback(toggleComponent);
+      return this;
+    }
+    addButton(callback: (button: any) => any) {
+      const buttonEl = document.createElement('button');
+      this.settingEl.appendChild(buttonEl);
+      const buttonComponent = {
+        buttonEl,
+        setButtonText: (text: string) => {
+          buttonEl.textContent = text;
+          return buttonComponent;
+        },
+        setTooltip: (tooltip: string) => {
+          buttonEl.title = tooltip;
+          return buttonComponent;
+        },
+        setClass: (className: string) => {
+          buttonEl.className = className;
+          return buttonComponent;
+        },
+        setDisabled: (disabled: boolean) => {
+          buttonEl.disabled = disabled;
+          return buttonComponent;
+        },
+        onClick: (callback: () => void) => {
+          buttonEl.addEventListener('click', callback);
+          return buttonComponent;
+        }
+      };
+      callback(buttonComponent);
+      return this;
+    }
+  }
+}));
+
+// Mock dependencies  
+jest.mock('llm/llmProvider', () => ({
+  LLMProvider: {
+    testApiKey: jest.fn()
+  }
+}));
 jest.mock('../../src/llm/mcpClient');
 jest.mock('../../src/llm/oauthClient');
 jest.mock('../../src/settings/components/RulesSettingsComponent');
+
+jest.mock('settings/components/MCPSettingsComponent', () => ({
+  MCPSettingsComponent: class MCPSettingsComponent {
+    constructor(app: any, container: HTMLElement, plugin: any) {
+      // Create some toggle elements for testing
+      const toggle1 = document.createElement('input');
+      toggle1.type = 'checkbox';
+      toggle1.className = 'mcp-toggle';
+      toggle1.addEventListener('change', async () => {
+        await plugin.saveSettings();
+      });
+      container.appendChild(toggle1);
+      
+      const toggle2 = document.createElement('input');
+      toggle2.type = 'checkbox';
+      toggle2.className = 'mcp-toggle';
+      toggle2.addEventListener('change', async () => {
+        await plugin.saveSettings();
+      });
+      container.appendChild(toggle2);
+    }
+    async render() {
+      // Mock render method
+    }
+  }
+}));
+
+jest.mock('settings/components/ToolsSettingsComponent', () => ({
+  ToolsSettingsComponent: class ToolsSettingsComponent {
+    constructor(app: any, container: HTMLElement, plugin: any) {
+      // Create some toggle elements for tools testing
+      const toggle1 = document.createElement('input');
+      toggle1.type = 'checkbox';
+      toggle1.className = 'tool-toggle';
+      toggle1.addEventListener('change', async () => {
+        await plugin.saveSettings();
+      });
+      container.appendChild(toggle1);
+      
+      const toggle2 = document.createElement('input');
+      toggle2.type = 'checkbox';
+      toggle2.className = 'tool-toggle';
+      toggle2.addEventListener('change', async () => {
+        await plugin.saveSettings();
+      });
+      container.appendChild(toggle2);
+    }
+    async render() {
+      // Mock render method
+    }
+  }
+}));
+
+jest.mock('views/components/ModelSelector', () => ({
+  ModelSelector: class ModelSelector {
+    constructor(parent: HTMLElement, plugin: any, title: string = "Model", desc: string = "AI model for feedback", modelKind: 'model' | 'summarizer' = 'model') {
+      // Create the setting structure that ModelSelector would create
+      const settingDiv = document.createElement('div');
+      settingDiv.className = 'setting-item notes-critic-model-selector';
+      
+      const infoDiv = document.createElement('div');
+      infoDiv.className = 'setting-item-info';
+      
+      const nameDiv = document.createElement('div');
+      nameDiv.className = 'setting-item-name';
+      nameDiv.textContent = title;
+      infoDiv.appendChild(nameDiv);
+      
+      const descDiv = document.createElement('div');
+      descDiv.className = 'setting-item-description';
+      descDiv.textContent = desc;
+      infoDiv.appendChild(descDiv);
+      
+      const controlDiv = document.createElement('div');
+      controlDiv.className = 'setting-item-control';
+      
+      const select = document.createElement('select');
+      select.className = 'dropdown';
+      
+      const option1 = document.createElement('option');
+      option1.value = 'anthropic/claude-3-5-sonnet-latest';
+      option1.textContent = 'Claude 3.5 Sonnet';
+      select.appendChild(option1);
+      
+      const option2 = document.createElement('option');
+      option2.value = 'openai/gpt-4o';
+      option2.textContent = 'GPT-4o';
+      select.appendChild(option2);
+      
+      // Set initial value based on current settings
+      const fieldName = modelKind === 'model' ? 'model' : 'summarizerModel';
+      const currentValue = plugin.settings[fieldName];
+      if (currentValue) {
+        select.value = currentValue;
+      }
+      
+      // Add onChange handler to update settings
+      select.addEventListener('change', async () => {
+        if (modelKind === 'model') {
+          plugin.settings.model = select.value;
+        } else {
+          plugin.settings.summarizerModel = select.value;
+        }
+        await plugin.saveSettings();
+      });
+      
+      controlDiv.appendChild(select);
+      settingDiv.appendChild(infoDiv);
+      settingDiv.appendChild(controlDiv);
+      parent.appendChild(settingDiv);
+    }
+  }
+}));
 
 describe('NotesCriticSettingsTab', () => {
   let settingsTab: NotesCriticSettingsTab;
@@ -16,9 +265,6 @@ describe('NotesCriticSettingsTab', () => {
   let mockContainer: HTMLElement;
 
   beforeEach(() => {
-    // Create mock DOM container
-    mockContainer = document.createElement('div');
-    
     mockApp = {
       workspace: { getActiveFile: jest.fn() }
     };
@@ -33,11 +279,8 @@ describe('NotesCriticSettingsTab', () => {
 
     settingsTab = new NotesCriticSettingsTab(mockApp, mockPlugin);
     
-    // Mock containerEl
-    Object.defineProperty(settingsTab, 'containerEl', {
-      value: mockContainer,
-      writable: true
-    });
+    // The mock PluginSettingTab will create its own containerEl
+    mockContainer = settingsTab.containerEl;
   });
 
   afterEach(() => {
@@ -73,8 +316,8 @@ describe('NotesCriticSettingsTab', () => {
       expect(passwordInputs.length).toBeGreaterThan(0);
     });
 
-    it('should create model dropdown setting', () => {
-      settingsTab.display();
+    it('should create model dropdown setting', async () => {
+      await settingsTab.display();
       
       const dropdowns = mockContainer.querySelectorAll('select');
       expect(dropdowns.length).toBeGreaterThan(0);
@@ -208,16 +451,17 @@ describe('NotesCriticSettingsTab', () => {
     });
 
     it('should handle successful API key test', async () => {
-      const { LLMProvider } = require('../../src/llm/llmProvider');
-      LLMProvider.testApiKey = jest.fn().mockResolvedValue(true);
+      const { LLMProvider } = await import('llm/llmProvider');
+      const testApiKeyMock = LLMProvider.testApiKey as jest.Mock;
+      testApiKeyMock.mockResolvedValue(true);
       
-      settingsTab.display();
+      await settingsTab.display();
       
       // Find and click test button
       const buttons = mockContainer.querySelectorAll('button');
       const testButton = Array.from(buttons).find(btn => 
         btn.textContent?.toLowerCase().includes('test')
-      );
+      ) as HTMLElement;
       
       if (testButton) {
         testButton.click();
@@ -225,15 +469,18 @@ describe('NotesCriticSettingsTab', () => {
         // Allow async operation to complete
         await new Promise(resolve => setTimeout(resolve, 100));
         
-        expect(LLMProvider.testApiKey).toHaveBeenCalled();
+        expect(testApiKeyMock).toHaveBeenCalled();
+      } else {
+        throw new Error('Test button not found');
       }
     });
 
     it('should handle failed API key test', async () => {
-      const { LLMProvider } = require('../../src/llm/llmProvider');
-      LLMProvider.testApiKey = jest.fn().mockResolvedValue(false);
+      const { LLMProvider } = await import('llm/llmProvider');
+      const testApiKeyMock = LLMProvider.testApiKey as jest.Mock;
+      testApiKeyMock.mockResolvedValue(false);
       
-      settingsTab.display();
+      await settingsTab.display();
       
       const buttons = mockContainer.querySelectorAll('button');
       const testButton = Array.from(buttons).find(btn => 
@@ -245,7 +492,7 @@ describe('NotesCriticSettingsTab', () => {
         
         await new Promise(resolve => setTimeout(resolve, 100));
         
-        expect(LLMProvider.testApiKey).toHaveBeenCalled();
+        expect(testApiKeyMock).toHaveBeenCalled();
       }
     });
   });

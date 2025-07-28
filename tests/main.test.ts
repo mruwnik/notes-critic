@@ -4,10 +4,25 @@ import { DEFAULT_SETTINGS } from '../src/constants';
 import { CHAT_VIEW_CONFIG } from '../src/types';
 import { Notice } from 'obsidian';
 
+// Mock Obsidian Notice and Plugin
+jest.mock('obsidian', () => ({
+  Notice: jest.fn(),
+  Plugin: class Plugin {
+    app: any;
+    manifest: any;
+    constructor(app: any, manifest: any) {
+      this.app = app;
+      this.manifest = manifest;
+    }
+  }
+}));
+
 // Mock the dependencies
 jest.mock('../src/views/ChatView');
 jest.mock('../src/settings/SettingsTab');
 jest.mock('../src/llm/oauthClient');
+jest.mock('../src/llm/mcpClient');
+jest.mock('../src/views/components/ModelSelector');
 
 describe('NotesCritic Plugin', () => {
   let plugin: NotesCritic;
@@ -27,6 +42,7 @@ describe('NotesCritic Plugin', () => {
       getLeavesOfType: jest.fn(),
       getRightLeaf: jest.fn().mockReturnValue(mockLeaf),
       revealLeaf: jest.fn(),
+      on: jest.fn().mockReturnValue({unload: jest.fn()}),
     };
 
     mockApp = {
@@ -47,7 +63,10 @@ describe('NotesCritic Plugin', () => {
     plugin.addSettingTab = jest.fn();
     plugin.registerView = jest.fn();
     plugin.registerObsidianProtocolHandler = jest.fn();
+    plugin.registerEvent = jest.fn();
+    plugin.addStatusBarItem = jest.fn().mockReturnValue({addClass: jest.fn()});
     (plugin as any).refreshChatViewModelSelectors = jest.fn();
+    (plugin as any).updateStatusBarVisibility = jest.fn();
   });
 
   afterEach(() => {

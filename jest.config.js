@@ -18,7 +18,9 @@ module.exports = {
     '^llm/(.*)$': '<rootDir>/tests/__mocks__/llm/$1.js',
     '^conversation/(.*)$': '<rootDir>/src/conversation/$1',
     '^feedback/(.*)$': '<rootDir>/tests/__mocks__/feedback/$1.js',
-    '^rules/(.*)$': '<rootDir>/src/rules/$1'
+    '^rules/(.*)$': '<rootDir>/src/rules/$1',
+    '^diffs$': '<rootDir>/src/diffs.ts',
+    'src/llm/mcpClient': '<rootDir>/tests/__mocks__/llm/mcpClient.js'
   },
   setupFilesAfterEnv: ['<rootDir>/tests/setup.ts'],
   collectCoverageFrom: [

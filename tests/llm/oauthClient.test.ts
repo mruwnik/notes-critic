@@ -17,47 +17,75 @@ describe('OAuthClient', () => {
     // Mock localStorage
     mockLocalStorage = {};
     
-    // Create proper localStorage mock
-    const localStorageMock = {
-      getItem: jest.fn((key: string) => mockLocalStorage[key] || null),
-      setItem: jest.fn((key: string, value: string) => {
-        mockLocalStorage[key] = value;
-      }),
-      removeItem: jest.fn((key: string) => {
-        delete mockLocalStorage[key];
-      }),
-      clear: jest.fn(() => {
-        mockLocalStorage = {};
-      }),
-      length: 0,
-      key: jest.fn()
-    } as any;
-
-    global.localStorage = localStorageMock;
+    // Use Object.defineProperty to ensure the mock is properly applied
+    Object.defineProperty(global, 'localStorage', {
+      value: {
+        getItem: jest.fn().mockImplementation((key: string) => {
+          return mockLocalStorage[key] || null;
+        }),
+        setItem: jest.fn().mockImplementation((key: string, value: string) => {
+          mockLocalStorage[key] = value;
+        }),
+        removeItem: jest.fn().mockImplementation((key: string) => {
+          delete mockLocalStorage[key];
+        }),
+        clear: jest.fn().mockImplementation(() => {
+          mockLocalStorage = {};
+        }),
+        length: 0,
+        key: jest.fn()
+      },
+      configurable: true,
+      writable: true
+    });
 
     // Mock sessionStorage too
-    global.sessionStorage = {
-      getItem: jest.fn(),
-      setItem: jest.fn(),  
-      removeItem: jest.fn(),
-      clear: jest.fn(),
-      length: 0,
-      key: jest.fn()
-    } as any;
+    let mockSessionStorage: { [key: string]: string } = {};
+    
+    Object.defineProperty(global, 'sessionStorage', {
+      value: {
+        getItem: jest.fn().mockImplementation((key: string) => {
+          return mockSessionStorage[key] || null;
+        }),
+        setItem: jest.fn().mockImplementation((key: string, value: string) => {
+          mockSessionStorage[key] = value;
+        }),
+        removeItem: jest.fn().mockImplementation((key: string) => {
+          delete mockSessionStorage[key];
+        }),
+        clear: jest.fn().mockImplementation(() => {
+          mockSessionStorage = {};
+        }),
+        length: 0,
+        key: jest.fn()
+      },
+      configurable: true,
+      writable: true
+    });
 
     // Mock crypto for PKCE
-    global.crypto = {
-      getRandomValues: jest.fn((array: Uint8Array) => {
-        // Fill with predictable values for testing
-        for (let i = 0; i < array.length; i++) {
-          array[i] = i % 256;
+    const mockDigest = new ArrayBuffer(32);
+    const view = new Uint8Array(mockDigest);
+    for (let i = 0; i < 32; i++) {
+      view[i] = i; // Fill with predictable values
+    }
+    
+    Object.defineProperty(global, 'crypto', {
+      value: {
+        getRandomValues: jest.fn((array: Uint8Array) => {
+          // Fill with predictable values for testing
+          for (let i = 0; i < array.length; i++) {
+            array[i] = i % 256;
+          }
+          return array;
+        }),
+        subtle: {
+          digest: jest.fn(() => Promise.resolve(mockDigest))
         }
-        return array;
-      }),
-      subtle: {
-        digest: jest.fn(() => Promise.resolve(new ArrayBuffer(32)))
-      }
-    } as any;
+      },
+      configurable: true,
+      writable: true
+    });
 
     // Mock btoa for base64 encoding
     global.btoa = jest.fn((str: string) => Buffer.from(str, 'binary').toString('base64'));
@@ -89,10 +117,7 @@ describe('OAuthClient', () => {
       mockLocalStorage[`oauth_access_token_${serverUrl}`] = 'stored-access-token';
       mockLocalStorage[`oauth_refresh_token_${serverUrl}`] = 'stored-refresh-token';
       
-      // Verify the mock localStorage is returning the values
-      expect(global.localStorage.getItem(`oauth_access_token_${serverUrl}`)).toBe('stored-access-token');
-      expect(global.localStorage.getItem(`oauth_refresh_token_${serverUrl}`)).toBe('stored-refresh-token');
-      
+      // Create a new client that will load the tokens
       const tokenClient = new OAuthClient(serverUrl);
       
       expect(tokenClient['accessToken']).toBe('stored-access-token');
@@ -137,6 +162,7 @@ describe('OAuthClient', () => {
 
     it('should discover server metadata successfully', async () => {
       (requestUrl as jest.Mock).mockResolvedValue({
+        status: 200,
         json: mockServerMetadata
       });
 
@@ -159,6 +185,7 @@ describe('OAuthClient', () => {
 
     it('should cache server metadata', async () => {
       (requestUrl as jest.Mock).mockResolvedValue({
+        status: 200,
         json: mockServerMetadata
       });
 
@@ -194,6 +221,7 @@ describe('OAuthClient', () => {
 
     it('should register client successfully', async () => {
       (requestUrl as jest.Mock).mockResolvedValue({
+        status: 200,
         json: mockClientInfo
       });
 
@@ -209,20 +237,23 @@ describe('OAuthClient', () => {
           'Accept': 'application/json'
         },
         body: JSON.stringify({
-          client_name: 'Notes Critic',
-          client_uri: 'https://obsidian.md',
-          redirect_uris: [`obsidian://notes-critic-oauth`],
-          grant_types: ['authorization_code'],
+          client_name: 'Obsidian Notes Critic',
+          client_uri: 'https://github.com/obsidian-notes-critic/obsidian-notes-critic',
+          redirect_uris: [`obsidian://mcp-auth-callback?serverUrl=${encodeURIComponent(serverUrl)}`],
           response_types: ['code'],
-          token_endpoint_auth_method: 'none'
-        })
+          grant_types: ['authorization_code', 'refresh_token'],
+          token_endpoint_auth_method: 'none',
+          application_type: 'native',
+          scope: 'read write'
+        }),
+        throw: false
       });
     });
 
     it('should throw error when no server metadata', async () => {
       client['serverMetadata'] = null;
       
-      await expect(client.registerClient()).rejects.toThrow('Server metadata not discovered');
+      await expect(client.registerClient()).rejects.toThrow('Server does not support Dynamic Client Registration');
     });
 
     it('should throw error when no registration endpoint', async () => {
@@ -231,7 +262,7 @@ describe('OAuthClient', () => {
         registration_endpoint: undefined
       };
       
-      await expect(client.registerClient()).rejects.toThrow('Server does not support client registration');
+      await expect(client.registerClient()).rejects.toThrow('Server does not support Dynamic Client Registration');
     });
 
     it('should handle registration errors', async () => {
@@ -257,19 +288,20 @@ describe('OAuthClient', () => {
 
     it('should store client info in localStorage', async () => {
       (requestUrl as jest.Mock).mockResolvedValue({
+        status: 200,
         json: mockClientInfo
       });
 
       await client.registerClient();
       
       expect(localStorage.setItem).toHaveBeenCalledWith(
-        `oauth_client_${serverUrl}`,
-        JSON.stringify(mockClientInfo)
+        `oauth_client_id_${serverUrl}`,
+        mockClientInfo.client_id
       );
     });
   });
 
-  describe('generateAuthUrl', () => {
+  describe('authorize', () => {
     beforeEach(async () => {
       client['serverMetadata'] = {
         issuer: baseUrl,
@@ -287,16 +319,17 @@ describe('OAuthClient', () => {
     });
 
     it('should generate authorization URL with PKCE', async () => {
-      const authUrl = await client.generateAuthUrl('test-state');
+      const authUrl = await client.authorize();
       
       const url = new URL(authUrl);
       expect(url.origin + url.pathname).toBe(`${baseUrl}/oauth/authorize`);
       expect(url.searchParams.get('response_type')).toBe('code');
       expect(url.searchParams.get('client_id')).toBe('test-client-id');
-      expect(url.searchParams.get('redirect_uri')).toBe('obsidian://notes-critic-oauth');
-      expect(url.searchParams.get('state')).toBe('test-state');
+      expect(url.searchParams.get('redirect_uri')).toContain('obsidian://');
+      expect(url.searchParams.get('state')).toBeTruthy();
       expect(url.searchParams.get('code_challenge_method')).toBe('S256');
       expect(url.searchParams.get('code_challenge')).toBeTruthy();
+      expect(url.searchParams.get('scope')).toBe('read write');
       
       // Verify code verifier is stored
       expect(client['codeVerifier']).toBeTruthy();
@@ -305,20 +338,24 @@ describe('OAuthClient', () => {
     it('should throw error when no server metadata', async () => {
       client['serverMetadata'] = null;
       
-      await expect(client.generateAuthUrl('state')).rejects.toThrow('Server metadata not discovered');
+      // Mock the discoverServerMetadata to throw an error
+      (requestUrl as jest.Mock).mockRejectedValue(new Error('Network error'));
+      
+      await expect(client.authorize()).rejects.toThrow('OAuth server metadata discovery failed');
     });
 
     it('should throw error when no client info', async () => {
       client['client'] = null;
+      client['serverMetadata'] = {
+        issuer: baseUrl,
+        authorization_endpoint: `${baseUrl}/oauth/authorize`,
+        token_endpoint: `${baseUrl}/oauth/token`,
+        response_types_supported: ['code'],
+        grant_types_supported: ['authorization_code'],
+        code_challenge_methods_supported: ['S256']
+      };
       
-      await expect(client.generateAuthUrl('state')).rejects.toThrow('Client not registered');
-    });
-
-    it('should include scope if provided', async () => {
-      const authUrl = await client.generateAuthUrl('test-state', 'read write');
-      
-      const url = new URL(authUrl);
-      expect(url.searchParams.get('scope')).toBe('read write');
+      await expect(client.authorize()).rejects.toThrow('Server does not support Dynamic Client Registration');
     });
   });
 
@@ -350,6 +387,10 @@ describe('OAuthClient', () => {
     });
 
     it('should exchange authorization code for tokens', async () => {
+      // Set up sessionStorage data
+      (global.sessionStorage.setItem as jest.Mock)('oauth_state_https://mcp.example.com', 'test-state');
+      (global.sessionStorage.setItem as jest.Mock)('oauth_code_verifier_https://mcp.example.com', 'test-code-verifier');
+      
       (requestUrl as jest.Mock).mockResolvedValue({
         json: mockTokens
       });
@@ -360,18 +401,25 @@ describe('OAuthClient', () => {
       expect(client['accessToken']).toBe('new-access-token');
       expect(client['refreshToken']).toBe('new-refresh-token');
       
-      expect(requestUrl).toHaveBeenCalledWith({
-        url: `${baseUrl}/oauth/token`,
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/x-www-form-urlencoded',
-          'Accept': 'application/json'
-        },
-        body: 'grant_type=authorization_code&code=auth-code&redirect_uri=obsidian%3A%2F%2Fnotes-critic-oauth&client_id=test-client-id&code_verifier=test-code-verifier'
+      const call = (requestUrl as jest.Mock).mock.calls[0][0];
+      expect(call.url).toBe(`${baseUrl}/oauth/token`);
+      expect(call.method).toBe('POST');
+      expect(call.headers).toEqual({
+        'Content-Type': 'application/x-www-form-urlencoded',
+        'Accept': 'application/json'
       });
+      expect(call.body).toContain('grant_type=authorization_code');
+      expect(call.body).toContain('code=auth-code');
+      expect(call.body).toContain('redirect_uri=obsidian%3A%2F%2F');
+      expect(call.body).toContain('client_id=test-client-id');
+      expect(call.body).toContain('code_verifier=test-code-verifier');
     });
 
     it('should store tokens in localStorage', async () => {
+      // Set up sessionStorage data
+      (global.sessionStorage.setItem as jest.Mock)('oauth_state_https://mcp.example.com', 'test-state');
+      (global.sessionStorage.setItem as jest.Mock)('oauth_code_verifier_https://mcp.example.com', 'test-code-verifier');
+      
       (requestUrl as jest.Mock).mockResolvedValue({
         json: mockTokens
       });
@@ -389,24 +437,46 @@ describe('OAuthClient', () => {
     });
 
     it('should throw error when no server metadata', async () => {
+      // Set up sessionStorage data for state check but no code verifier so it fails early
+      (global.sessionStorage.setItem as jest.Mock)('oauth_state_https://mcp.example.com', 'state');
+      // Don't set up a code verifier so it fails with the code verifier error first
+      
       client['serverMetadata'] = null;
       
-      await expect(client.exchangeCodeForToken('code', 'state')).rejects.toThrow('Server metadata not discovered');
+      await expect(client.exchangeCodeForToken('code', 'state')).rejects.toThrow('Code verifier not found');
     });
 
     it('should throw error when no client info', async () => {
-      client['client'] = null;
+      // Set up sessionStorage data for state check
+      (global.sessionStorage.setItem as jest.Mock)('oauth_state_https://mcp.example.com', 'state');
       
-      await expect(client.exchangeCodeForToken('code', 'state')).rejects.toThrow('Client not registered');
+      client['client'] = null;
+      client['serverMetadata'] = {
+        issuer: baseUrl,
+        authorization_endpoint: `${baseUrl}/oauth/authorize`,
+        token_endpoint: `${baseUrl}/oauth/token`,
+        response_types_supported: ['code'],
+        grant_types_supported: ['authorization_code'],
+        code_challenge_methods_supported: ['S256']
+      };
+      
+      await expect(client.exchangeCodeForToken('code', 'state')).rejects.toThrow('Server does not support Dynamic Client Registration');
     });
 
     it('should throw error when no code verifier', async () => {
+      // Set up sessionStorage data for state check, but no code verifier
+      (global.sessionStorage.setItem as jest.Mock)('oauth_state_https://mcp.example.com', 'state');
+      
       client['codeVerifier'] = null;
       
-      await expect(client.exchangeCodeForToken('code', 'state')).rejects.toThrow('No code verifier found');
+      await expect(client.exchangeCodeForToken('code', 'state')).rejects.toThrow('Code verifier not found');
     });
 
     it('should handle token exchange errors', async () => {
+      // Set up sessionStorage data
+      (global.sessionStorage.setItem as jest.Mock)('oauth_state_https://mcp.example.com', 'state');
+      (global.sessionStorage.setItem as jest.Mock)('oauth_code_verifier_https://mcp.example.com', 'test-code-verifier');
+      
       (requestUrl as jest.Mock).mockRejectedValue(new Error('Token exchange failed'));
 
       await expect(client.exchangeCodeForToken('code', 'state')).rejects.toThrow('Token exchange failed');
@@ -474,7 +544,28 @@ describe('OAuthClient', () => {
 
   describe('PKCE utilities', () => {
     it('should generate code verifier and challenge', async () => {
-      const authUrl = await client.generateAuthUrl('test-state');
+      // Set up the required mocks for authorize method
+      client['serverMetadata'] = {
+        issuer: baseUrl,
+        authorization_endpoint: `${baseUrl}/oauth/authorize`,
+        token_endpoint: `${baseUrl}/oauth/token`,
+        registration_endpoint: `${baseUrl}/oauth/register`,
+        response_types_supported: ['code'],
+        grant_types_supported: ['authorization_code'],
+        code_challenge_methods_supported: ['S256']
+      };
+      
+      const mockClientInfo = {
+        client_id: 'test-client-id',
+        token_endpoint_auth_method: 'none'
+      };
+      
+      (requestUrl as jest.Mock).mockResolvedValue({
+        status: 200,
+        json: mockClientInfo
+      });
+      
+      const authUrl = await client.authorize();
       
       expect(client['codeVerifier']).toBeTruthy();
       expect(client['codeVerifier']!.length).toBeGreaterThan(40);

@@ -8,6 +8,10 @@ jest.mock('../../src/llm/fileUtils');
 jest.mock('../../src/llm/tools');
 jest.mock('../../src/llm/streaming');
 
+// Provider classes are automatically mocked by __mocks__ directory
+jest.mock('../../src/llm/providers/Anthropic');
+jest.mock('../../src/llm/providers/OpenAI');
+
 // Mock Obsidian modules
 jest.mock('obsidian', () => ({
   requestUrl: jest.fn(),
@@ -35,7 +39,8 @@ describe('LLMProvider', () => {
     mockSettings = {
       ...DEFAULT_SETTINGS,
       anthropicApiKey: 'test-key',
-      model: 'anthropic/claude-3-sonnet-20240229'
+      model: 'anthropic/claude-3-sonnet-20240229',
+      mcpClients: []
     };
   });
 
@@ -175,8 +180,8 @@ describe('LLMProvider', () => {
     });
 
     it('should return false for unsupported provider', async () => {
-      const result = await LLMProvider.testApiKey('test-key', 'unsupported' as any, mockApp);
-      expect(result).toBe(false);
+      await expect(LLMProvider.testApiKey('test-key', 'unsupported' as any, mockApp))
+        .rejects.toThrow('Unsupported LLM provider: unsupported');
     });
 
     it('should handle API errors', async () => {

@@ -1,10 +1,17 @@
 import { jest, describe, it, expect, beforeEach, afterEach } from '@jest/globals';
 import { ConversationManager, ConversationCallback } from '../../src/conversation/ConversationManager';
-import { NotesCriticSettings, DEFAULT_SETTINGS, ConversationTurn, UserInput, LLMFile } from '../../src/types';
-import { LLMProvider } from '../../src/llm/llmProvider';
+import { NotesCriticSettings, ConversationTurn, UserInput, LLMFile } from '../../src/types';
+import { DEFAULT_SETTINGS } from '../../src/constants';
 
 // Mock the LLMProvider
-jest.mock('../../src/llm/llmProvider');
+const mockCallLLM = jest.fn();
+const mockMakeTitle = jest.fn().mockResolvedValue('Test Conversation Title');
+jest.mock('llm/llmProvider', () => ({
+  LLMProvider: jest.fn().mockImplementation(() => ({
+    callLLM: mockCallLLM,
+    makeTitle: mockMakeTitle
+  }))
+}));
 
 describe('ConversationManager', () => {
   let manager: ConversationManager;
@@ -79,16 +86,11 @@ describe('ConversationManager', () => {
 
   describe('newConversationRound', () => {
     beforeEach(() => {
-      // Mock the async iterator for feedback
-      const mockAsyncIterator = {
-        async *[Symbol.asyncIterator]() {
-          yield { type: 'thinking', content: 'thinking...' };
-          yield { type: 'content', content: 'response content' };
-          yield { type: 'done', content: '', isComplete: true };
-        }
-      };
-      
-      (feedbackProvider.getFeedback as jest.Mock).mockReturnValue(mockAsyncIterator);
+      // Set up default mock behavior for LLMProvider.callLLM
+      mockCallLLM.mockImplementation(async function* () {
+        yield { type: 'thinking', content: 'thinking...', id: 'test-1' };
+        yield { type: 'content', content: 'response content', id: 'test-2' };
+      });
     });
 
     it('should create and add new conversation turn', async () => {
@@ -161,6 +163,11 @@ describe('ConversationManager', () => {
     it('should handle stream errors', async () => {
       const errorMessage = 'Stream error';
 
+      // Mock LLMProvider to throw an error
+      mockCallLLM.mockImplementationOnce(async function* () {
+        throw new Error(errorMessage);
+      });
+
       const turn = await manager.newConversationRound({
         prompt: 'Test error handling',
         callback: mockCallback
@@ -184,11 +191,9 @@ describe('ConversationManager', () => {
     let existingTurn: ConversationTurn;
 
     beforeEach(async () => {
-      const mockAsyncIterator = async function* () {
+      mockCallLLM.mockImplementationOnce(async function* () {
         yield { type: 'content', content: 'original response', id: 'orig-1' };
-      };
-      
-      (feedbackProvider.getFeedback as jest.Mock).mockImplementationOnce(mockAsyncIterator);
+      });
 
       existingTurn = await manager.newConversationRound({
         prompt: 'Original prompt',
@@ -198,6 +203,11 @@ describe('ConversationManager', () => {
 
     it('should rerun turn with new prompt', async () => {
       const newPrompt = 'Updated prompt';
+
+      // Mock the rerun response
+      mockCallLLM.mockImplementationOnce(async function* () {
+        yield { type: 'content', content: 'updated response', id: 'updated-1' };
+      });
 
       // Add small delay to ensure different timestamp ID
       await new Promise(resolve => setTimeout(resolve, 2));
@@ -219,11 +229,9 @@ describe('ConversationManager', () => {
     });
 
     it('should use original prompt if not provided', async () => {
-      const newMockAsyncIterator = async function* () {
+      mockCallLLM.mockImplementationOnce(async function* () {
         yield { type: 'content', content: 'rerun response', id: 'rerun-1' };
-      };
-      
-      (feedbackProvider.getFeedback as jest.Mock).mockImplementationOnce(newMockAsyncIterator);
+      });
 
       const rerunTurn = await manager.rerunConversationTurn({
         turnId: existingTurn.id
@@ -243,8 +251,23 @@ describe('ConversationManager', () => {
     it('should handle abort controller cancellation', async () => {
       const abortController = new AbortController();
       
-      // Abort the controller before starting - this will be checked during iteration
-      setTimeout(() => abortController.abort(), 10);
+      // Mock LLMProvider to simulate abort behavior - must abort right away
+      mockCallLLM.mockImplementationOnce(async function* () {
+        // Check abort signal immediately and throw
+        if (abortController.signal.aborted) {
+          throw new Error('Inference was cancelled');
+        }
+        
+        yield { type: 'thinking', content: 'starting...', id: 'test-1' };
+        
+        // Check again after yielding
+        if (abortController.signal.aborted) {
+          throw new Error('Inference was cancelled');
+        }
+      });
+      
+      // Abort the controller immediately
+      abortController.abort();
 
       const turn = await manager.newConversationRound({
         prompt: 'Test abort',

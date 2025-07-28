@@ -457,13 +457,6 @@ export class OAuthClient {
     }
 
     /**
-     * Check if the client is authenticated
-     */
-    public isAuthenticated(): boolean {
-        return this.accessToken !== null;
-    }
-
-    /**
      * Alias for discoverServerMetadata for backward compatibility
      */
     public async discoverServer(): Promise<OAuthServerMetadata> {

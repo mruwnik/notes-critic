@@ -1,10 +1,10 @@
 {
 	"id": "notes-critic",
 	"name": "Notes Critic",
+	"author": "mruwnik",
+	"description": "Automatically critique your notes with AI. Connect your own MCP servers to extend functionality.",
 	"version": "0.0.1",
 	"minAppVersion": "0.15.0",
-	"description": "A plugin that helps you critique your notes.",
-	"author": "mruwnik",
 	"authorUrl": "https://github.com/mruwnik",
 	"isDesktopOnly": false
 }
