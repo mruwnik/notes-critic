@@ -133,6 +133,12 @@ If your plugin does not need CSS, delete this file.
     cursor: text;
 }
 
+.notes-critic-thinking-content {
+    white-space: pre-wrap;
+    font-family: inherit;
+    margin: 0;
+}
+
 /* Shared setting overrides */
 .notes-critic-model-selector .setting-item,
 .notes-critic-chat-model-selector .setting-item {
@@ -349,6 +355,9 @@ If your plugin does not need CSS, delete this file.
     -webkit-user-select: text;
     -moz-user-select: text;
     cursor: text;
+    white-space: pre-wrap;
+    font-family: inherit;
+    margin: 0;
 }
 
 .notes-critic-details-section {
@@ -404,6 +413,29 @@ If your plugin does not need CSS, delete this file.
 
 .notes-critic-tool-call-content strong {
     color: var(--text-normal);
+}
+
+/* Chat message formatting */
+.notes-critic-chat-message {
+    white-space: pre-wrap;
+    font-family: inherit;
+    margin: 0;
+}
+
+/* Signature content styling */
+.notes-critic-signature-content {
+    font-style: italic;
+    color: var(--text-muted);
+}
+
+/* Block content styling */
+.notes-critic-block-content {
+    border: 1px solid var(--background-modifier-border);
+    padding: 8px;
+    margin-bottom: 8px;
+    border-radius: 4px;
+    white-space: pre-wrap;
+    margin-top: 0;
 }
 
 /* Diff formatting styles */
@@ -507,6 +539,12 @@ If your plugin does not need CSS, delete this file.
 
 /* Layout */
 .view-content {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+}
+
+.notes-critic-chat-view {
     display: flex;
     flex-direction: column;
     height: 100%;
@@ -704,6 +742,10 @@ If your plugin does not need CSS, delete this file.
     padding: 8px;
     border-radius: 4px;
     font-size: 0.9em;
+}
+
+.notes-critic-error-message {
+    color: var(--text-error);
 }
 
 /* Model Selector */

@@ -1,17 +1,21 @@
-import { Notice, Plugin, WorkspaceLeaf } from 'obsidian';
+import { Notice, Plugin, WorkspaceLeaf, Events } from 'obsidian';
 import { NotesCriticSettings, CHAT_VIEW_CONFIG } from 'types';
 import { ChatView } from 'views/ChatView';
 import { NotesCriticSettingsTab } from 'settings/SettingsTab';
 import { OAuthClient } from 'llm/oauthClient';
 import { MCP_AUTH_CALLBACK, DEFAULT_SETTINGS } from './constants';
 import { MCPClient, MCPManager } from 'llm/mcpClient';
+import React from 'react';
+import { createRoot, Root } from 'react-dom/client';
 import { ModelSelector } from 'views/components/ModelSelector';
+import { SettingsProvider } from 'hooks/useSettings';
 
 export default class NotesCritic extends Plugin {
     settings: NotesCriticSettings;
     mcpManager: MCPManager;
+    settingsEvents: Events = new Events();
     private statusBarItem: HTMLElement | null = null;
-    private statusBarModelSelector: ModelSelector | null = null;
+    private statusBarReactRoot: Root | null = null;
 
     async activateView() {
         const { workspace } = this.app;
@@ -88,20 +92,28 @@ export default class NotesCritic extends Plugin {
         if (!this.statusBarItem) {
             this.statusBarItem = this.addStatusBarItem();
             this.statusBarItem.addClass('notes-critic-status-bar-model-selector');
-            this.statusBarModelSelector = new ModelSelector(
-                this.statusBarItem,
-                this,
-                "",
-                "Select AI model",
-                'model'
+
+            this.statusBarReactRoot = createRoot(this.statusBarItem);
+            this.statusBarReactRoot.render(
+                React.createElement(SettingsProvider, {
+                    app: this.app,
+                    plugin: this,
+                    children: React.createElement(ModelSelector, {
+                        title: "",
+                        desc: "Select AI model",
+                        modelKind: 'model'
+                    })
+                })
             );
         }
     }
 
     hideStatusBarModelSelector(): void {
         if (this.statusBarItem) {
-            this.statusBarModelSelector?.destroy();
-            this.statusBarModelSelector = null;
+            if (this.statusBarReactRoot) {
+                this.statusBarReactRoot.unmount();
+                this.statusBarReactRoot = null;
+            }
             this.statusBarItem.remove();
             this.statusBarItem = null;
         }
@@ -141,12 +153,11 @@ export default class NotesCritic extends Plugin {
     async saveSettings() {
         await this.saveData(this.settings);
         this.refreshChatViewModelSelectors();
+
+        // Emit settings changed event for React components
+        this.settingsEvents.trigger('settings-changed', this.settings);
     }
 
     private refreshChatViewModelSelectors() {
-        // Refresh status bar model selector instead of chat input selectors
-        if (this.statusBarModelSelector) {
-            this.statusBarModelSelector.updateModel(this.settings.model);
-        }
     }
 }

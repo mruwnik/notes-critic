@@ -127,8 +127,8 @@ async function* streamNodeRequest(config: HttpConfig): AsyncGenerator<string, vo
 
 export async function* callEndpoint(config: HttpConfig): AsyncGenerator<string, void, unknown> {
     // Check if we're in a test environment and force requestUrl path
-    const isTestEnv = process.env.NODE_ENV === 'test' || typeof window !== 'undefined';
-    
+    const isTestEnv = process.env.NODE_ENV === 'test';
+
     if (!isTestEnv && typeof require !== 'undefined' && require('https')) {
         yield* streamNodeRequest(config);
     } else {

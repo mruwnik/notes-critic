@@ -1,5 +1,5 @@
 import { TFile, MarkdownView, Notice } from 'obsidian';
-import { NoteSnapshot } from '../../types';
+import { NoteSnapshot } from './types';
 
 export class FileManager {
     private app: any;

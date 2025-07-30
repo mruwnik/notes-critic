@@ -1,36 +1,34 @@
 import { ItemView, WorkspaceLeaf, TFile, Notice, Plugin } from 'obsidian';
 import { CHAT_VIEW_CONFIG, NoteSnapshot, ConversationTurn, NotesCriticSettings } from 'types';
 import { generateDiff } from 'diffs';
-import { FeedbackDisplay } from 'views/components/FeedbackDisplay';
-import { ChatInput } from 'views/components/ChatInput';
-import { ControlPanel } from 'views/components/ControlPanel';
-import { FileManager } from 'views/components/FileManager';
+import { ChatViewComponent } from 'views/components/Chat';
+import { FileManager } from 'FileManager';
 import { ApiKeySetup } from 'views/components/ApiKeySetup';
-import { ConversationManager, ConversationChunk } from 'conversation/ConversationManager';
+import { ConversationChunk } from 'hooks/useConversationManager';
 import { RuleManager } from 'rules/RuleManager';
-import { HistoryManager } from 'conversation/HistoryManager';
+import React from 'react';
+import { createRoot } from 'react-dom/client';
 
 export class ChatView extends ItemView {
     private currentFile: TFile | null = null;
     private plugin: Plugin & { settings: NotesCriticSettings; saveSettings(): Promise<void> };
     private noteSnapshots: Map<string, NoteSnapshot> = new Map();
-    private conversationManager: ConversationManager;
     private lastFeedbackTimes: Map<string, Date> = new Map();
     private ruleManager: RuleManager;
-    private historyManager: HistoryManager;
     // Components
-    private feedbackDisplay: FeedbackDisplay;
-    private chatInput: ChatInput;
-    private controlPanel: ControlPanel;
+    private reactRoot: any;
+    private reactContainer: HTMLElement;
+    private updateReactComponents: () => void = () => { };
+    private chatInputRef: React.RefObject<HTMLTextAreaElement> = React.createRef();
+    private getCurrentConversation: () => ConversationTurn[] = () => [];
+    private sendFeedbackMessage: (prompt: string, files?: any[], overrideSettings?: NotesCriticSettings) => Promise<void> = async () => { };
     private fileManager: FileManager;
 
     constructor(leaf: WorkspaceLeaf, plugin: Plugin & { settings: NotesCriticSettings; saveSettings(): Promise<void> }) {
         super(leaf);
         this.plugin = plugin;
-        this.conversationManager = new ConversationManager(plugin.settings, this.app);
         this.fileManager = new FileManager(this.app, this.noteSnapshots, this.onFileChange.bind(this));
         this.ruleManager = new RuleManager(this.app);
-        this.historyManager = new HistoryManager(this.plugin.settings, this.app);
     }
 
     getViewType() {
@@ -68,48 +66,34 @@ export class ChatView extends ItemView {
     }
 
     private buildUI(container: Element) {
-        // Create header with inline controls
-        const headerContainer = container.createEl('div', {
-            cls: 'notes-critic-header-container'
-        });
-
-        // Create components
-        this.controlPanel = new ControlPanel(
-            headerContainer,
-            () => this.triggerFeedback(),
-            () => this.clearCurrentNote(),
-            this.loadHistory.bind(this)
-        );
-        this.feedbackDisplay = new FeedbackDisplay(
-            container,
-            this.rerunConversationTurn.bind(this),
-        );
-
-        let userInput = ''
-        this.chatInput = new ChatInput(container, {
-            onSend: async (message: string) => {
-                userInput = message;
-                this.cancelInference('');
-                await this.sendChatMessage(message);
-            },
-            onCancel: () => {
-                this.cancelInference(userInput);
-            }
-        });
+        this.reactContainer = container.createDiv();
+        this.setupReactComponents();
     }
 
-    private async cancelInference(userInput: string) {
-        this.conversationManager.cancelInference();
-        this.chatInput.setValue(userInput);
-        this.updateUI();
-    }
+    private setupReactComponents() {
+        this.reactRoot = createRoot(this.reactContainer);
 
-    private async loadHistory(id: string) {
-        const history = await this.historyManager.loadHistory(id);
-        if (history) {
-            this.conversationManager = new ConversationManager(this.plugin.settings, this.app, history);
-        }
-        this.updateUI();
+        const renderComponents = () => {
+            this.reactRoot.render(
+                React.createElement(ChatViewComponent, {
+                    settings: this.plugin.settings,
+                    app: this.app,
+                    onFeedback: this.triggerFeedback.bind(this),
+                    onClear: this.clearCurrentNote.bind(this),
+                    onChunkReceived: this.handleConversationChunk.bind(this),
+                    onConversationChange: (conversation: ConversationTurn[]) => {
+                        this.getCurrentConversation = () => conversation;
+                    },
+                    onTriggerFeedbackMessage: (feedbackFunction) => {
+                        this.sendFeedbackMessage = feedbackFunction;
+                    },
+                    chatInputRef: this.chatInputRef
+                })
+            );
+        };
+
+        this.updateReactComponents = renderComponents;
+        renderComponents();
     }
 
     private initializeView() {
@@ -152,16 +136,7 @@ export class ChatView extends ItemView {
     }
 
     private updateUI() {
-        this.historyManager.listHistory().then(history => {
-            const current = this.conversationManager.toHistory();
-            if (!history.find(h => h.id === current.id)) {
-                history = [current, ...history];
-            }
-            this.controlPanel.updateHistory(history, current.id);
-        });
-        this.feedbackDisplay.redisplayConversation(
-            this.conversationManager.getConversation()
-        );
+        this.updateReactComponents();
     }
 
     private async currentConfig(): Promise<NotesCriticSettings | undefined> {
@@ -199,35 +174,9 @@ export class ChatView extends ItemView {
         }
     }
 
-    private async sendChatMessage(message: string) {
-        if (!message) return;
-
-        try {
-            // If inference is already running, cancel it first
-            if (this.conversationManager.isInferenceRunning()) {
-                this.conversationManager.cancelInference();
-            }
-
-            await this.conversationManager.newConversationRound(
-                {
-                    prompt: message,
-                    callback: this.handleConversationChunk.bind(this),
-                    overrideSettings: await this.currentConfig()
-                }
-            );
-            this.updateUI();
-        } catch (error) {
-            new Notice(`Error sending message: ${error.message}`);
-        }
-    }
 
     private handleConversationChunk(chunk: ConversationChunk) {
-        const conversation = this.conversationManager.getConversation();
-        const currentTurn = conversation[conversation.length - 1];
-
-        if (!currentTurn) return;
-
-        this.feedbackDisplay.handleConversationChunk(chunk, currentTurn);
+        this.updateReactComponents();
     }
 
     public async triggerFeedback() {
@@ -259,14 +208,7 @@ export class ChatView extends ItemView {
         }];
 
         try {
-            await this.conversationManager.newConversationRound(
-                {
-                    prompt,
-                    files,
-                    callback: this.handleConversationChunk.bind(this),
-                    overrideSettings: await this.currentConfig()
-                }
-            );
+            await this.sendFeedbackMessage(prompt, files, await this.currentConfig());
 
             // Update snapshot baseline
             this.fileManager.updateFeedbackBaseline(this.currentFile!);
@@ -280,50 +222,20 @@ export class ChatView extends ItemView {
         }
     }
 
-    private async rerunConversationTurn(turn: ConversationTurn, message?: string) {
-        try {
-            // First, redisplay the conversation with the turns up to the one being rerun
-            const currentConversation = this.conversationManager.getConversation();
-            const turnIndex = currentConversation.findIndex(t => t.id === turn.id);
-
-            if (turnIndex !== -1) {
-                // Show only the turns before the one being rerun
-                const conversationBeforeRerun = currentConversation.slice(0, turnIndex);
-                this.feedbackDisplay.redisplayConversation(conversationBeforeRerun);
-            }
-
-            // Then rerun the turn (this will add the new turn and stream the response)
-            await this.conversationManager.rerunConversationTurn(
-                {
-                    turnId: turn.id,
-                    callback: this.handleConversationChunk.bind(this),
-                    overrideSettings: await this.currentConfig(),
-                    prompt: message
-                }
-            );
-        } catch (error) {
-            console.error('Error rerunning conversation turn:', error);
-            new Notice('Error rerunning response. Please try again.');
-        }
-    }
 
     private clearCurrentNote() {
-        if (!this.currentFile && this.conversationManager.getConversation().length === 0) return;
+        const currentConversation = this.getCurrentConversation();
+        if (!this.currentFile && currentConversation.length === 0) return;
 
         this.currentFile && this.fileManager.clearNoteData(this.currentFile);
-        this.conversationManager.cancelInference();
-
-        // Create a new conversation manager to reset the conversation
-        this.conversationManager = new ConversationManager(this.plugin.settings, this.app);
 
         this.updateUI();
         new Notice(`Cleared tracking and feedback for ${this.currentFile?.basename}`);
     }
 
     async onClose() {
-        // Clean up components
-        this.feedbackDisplay?.destroy();
-        this.chatInput?.destroy();
-        this.controlPanel?.destroy();
+        if (this.reactRoot) {
+            this.reactRoot.unmount();
+        }
     }
 } 
