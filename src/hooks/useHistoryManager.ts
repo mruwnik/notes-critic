@@ -114,13 +114,30 @@ export const useHistoryManager = () => {
         return filteredItems;
     }, [app, settings.logPath]);
 
+    const deleteHistory = useCallback(async (id: string): Promise<void> => {
+        const filePath = logName(id);
+        if (await app.vault.adapter.exists(filePath)) {
+            await app.vault.adapter.remove(filePath);
+        }
+
+        // Update both the Map and the array state
+        setHistory(prev => {
+            const newMap = new Map(prev);
+            newMap.delete(id);
+            return newMap;
+        });
+        
+        setHistoryList(prev => prev.filter(item => item.id !== id));
+    }, [app, logName]);
+
     return {
         history,
         historyList,
         saveHistory,
         loadHistory,
         listHistory,
-        makeTitle
+        makeTitle,
+        deleteHistory
     };
 };
 
