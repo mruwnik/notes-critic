@@ -89,7 +89,8 @@ const AuthButton: React.FC<AuthButtonProps> = ({ server }) => {
     };
 
     const getButtonClass = () => {
-        return authState === 'error' ? 'notes-critic-test-button notes-critic-test-button-invalid' : 'notes-critic-test-button';
+        const baseClasses = 'nc-btn nc-btn--sm';
+        return authState === 'error' ? `${baseClasses} nc-btn--invalid` : `${baseClasses} nc-btn--secondary`;
     };
 
     return (
@@ -152,24 +153,24 @@ const MCPServerItem: React.FC<MCPServerItemProps> = ({ server, onUpdate, onDelet
     };
 
     const getTestButtonClass = () => {
-        const baseClass = 'notes-critic-test-button';
+        const baseClasses = 'nc-btn nc-btn--sm nc-ml-2';
         switch (testStatus) {
-            case 'connected': return `${baseClass} notes-critic-test-button-valid`;
+            case 'connected': return `${baseClasses} nc-btn--valid`;
             case 'failed':
-            case 'error': return `${baseClass} notes-critic-test-button-invalid`;
-            default: return baseClass;
+            case 'error': return `${baseClasses} nc-btn--invalid`;
+            default: return `${baseClasses} nc-btn--secondary`;
         }
     };
 
     return (
-        <div className="notes-critic-mcp-server-item">
+        <div className="nc-card nc-card--padded">
             {/* Server Header */}
-            <div className="notes-critic-mcp-server-header">
-                <div className="notes-critic-mcp-server-title">
+            <div className="nc-flex nc-justify-between nc-items-center nc-pb-2 nc-border-b nc-mb-4">
+                <div className="nc-font-medium nc-text-normal">
                     {server.name || server.id}
                 </div>
-                <div className="notes-critic-mcp-server-actions">
-                    <label>
+                <div className="nc-flex nc-items-center nc-gap-3">
+                    <label className="nc-flex nc-items-center nc-gap-2 nc-text-sm nc-text-muted nc-cursor-pointer">
                         <input
                             type="checkbox"
                             checked={server.enabled}
@@ -178,7 +179,7 @@ const MCPServerItem: React.FC<MCPServerItemProps> = ({ server, onUpdate, onDelet
                         Enabled
                     </label>
                     <button
-                        className="notes-critic-delete-server-button"
+                        className="nc-btn nc-btn--ghost nc-text-error nc-text-lg nc-p-1 nc-rounded-sm"
                         onClick={() => onDelete(server.id)}
                         title="Delete server"
                     >
@@ -188,7 +189,7 @@ const MCPServerItem: React.FC<MCPServerItemProps> = ({ server, onUpdate, onDelet
             </div>
 
             {/* Server Details */}
-            <div className="notes-critic-mcp-server-details">
+            <div>
                 {/* Name Setting */}
                 <div className="setting-item">
                     <div className="setting-item-info">
@@ -215,7 +216,7 @@ const MCPServerItem: React.FC<MCPServerItemProps> = ({ server, onUpdate, onDelet
                             type="text"
                             value={server.url}
                             onChange={(e) => handleServerUpdate('url', e.target.value)}
-                            className="notes-critic-api-key-input"
+                            className="nc-w-96 nc-min-w-96"
                         />
                         <button
                             className={getTestButtonClass()}
@@ -268,12 +269,12 @@ export const MCPSettingsReact: React.FC = () => {
     }, [removeMCPServer]);
 
     return (
-        <div className="notes-critic-mcp-servers-container">
+        <div className="nc-card-container">
             {/* Header */}
-            <div className="notes-critic-mcp-servers-header">
-                <div className="notes-critic-mcp-servers-title">MCP Servers</div>
+            <div className="nc-flex nc-justify-between nc-items-center nc-pb-2 nc-border-b nc-mb-4">
+                <div className="nc-text-lg nc-font-semibold nc-text-normal">MCP Servers</div>
                 <button 
-                    className="notes-critic-add-server-button"
+                    className="nc-btn nc-btn--primary nc-btn--sm"
                     onClick={handleAddServer}
                 >
                     + Add Server
@@ -281,9 +282,9 @@ export const MCPSettingsReact: React.FC = () => {
             </div>
 
             {/* Server List */}
-            <div className="notes-critic-mcp-servers-list">
+            <div className="nc-flex nc-flex-col nc-gap-3">
                 {mcpServers.length === 0 ? (
-                    <div className="notes-critic-empty-state">
+                    <div className="nc-text-center nc-text-muted nc-italic nc-p-8 nc-bg-primary nc-rounded nc-border nc-border-faint" style={{borderStyle: 'dashed'}}>
                         No MCP servers configured. Click "Add Server" to get started.
                     </div>
                 ) : (

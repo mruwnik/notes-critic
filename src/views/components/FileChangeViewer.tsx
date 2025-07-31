@@ -8,8 +8,8 @@ interface FileChangeViewerProps {
 
 export const FileChangeViewer: React.FC<FileChangeViewerProps> = ({ filename, diff }) => {
     return (
-        <div>
-            <strong>File changes: {filename}</strong>
+        <div className="nc-space-y-2">
+            <div className="nc-font-semibold nc-text-sm">File changes: {filename}</div>
             <DiffViewer diff={diff} />
         </div>
     );

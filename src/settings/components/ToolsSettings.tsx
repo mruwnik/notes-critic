@@ -24,16 +24,16 @@ interface ToolSectionProps {
 
 const ToolItem: React.FC<ToolItemProps> = ({ name, description, enabled, isToolEnabled, onToggle }) => {
     return (
-        <div className="notes-critic-simple-tool-item">
+        <div className="nc-tool-item">
             <input
                 type="checkbox"
-                className="notes-critic-tool-checkbox"
+                className="nc-checkbox"
                 checked={enabled && isToolEnabled}
                 disabled={!enabled}
                 onChange={(e) => onToggle(name, e.target.checked)}
             />
-            <span className="notes-critic-tool-name">{name}</span>
-            <span className="notes-critic-tool-description">
+            <span className="nc-tool-name">{name}</span>
+            <span className="nc-text-muted nc-text-sm nc-flex-1">
                 {description || 'No description available'}
             </span>
         </div>
@@ -42,8 +42,8 @@ const ToolItem: React.FC<ToolItemProps> = ({ name, description, enabled, isToolE
 
 const ToolSection: React.FC<ToolSectionProps> = ({ title, tools, isOpen = false, enabledTools, onToggleTool }) => {
     return (
-        <details className="notes-critic-tools-section" open={isOpen}>
-            <summary className="notes-critic-tools-section-summary">
+        <details className="nc-details" open={isOpen}>
+            <summary className="nc-summary">
                 {title} ({tools.length})
             </summary>
             {tools.map(tool => (
@@ -138,14 +138,14 @@ export const ToolsSettingsReact: React.FC = () => {
 
     if (isLoading) {
         return (
-            <div className="notes-critic-tools-container">
+            <div className="nc-card-container">
                 <p>Loading tools...</p>
             </div>
         );
     }
 
     return (
-        <div className="notes-critic-tools-container">
+        <div className="nc-card-container">
             {/* Built-in Tools Section */}
             <ToolSection
                 title="Built-in Tools"
@@ -167,14 +167,14 @@ export const ToolsSettingsReact: React.FC = () => {
 
             {/* Error Display */}
             {error && (
-                <div className="notes-critic-error">
+                <div className="nc-text-error nc-bg-danger/10 nc-p-3 nc-rounded nc-text-sm">
                     {error}
                 </div>
             )}
 
             {/* Empty State */}
             {!isLoading && mcpTools.length === 0 && !error && (
-                <div className="notes-critic-empty-state">
+                <div className="nc-text-center nc-text-muted nc-italic nc-p-8 nc-bg-primary nc-rounded nc-border nc-border-faint" style={{borderStyle: 'dashed'}}>
                     No MCP tools available. Configure MCP servers to see additional tools.
                 </div>
             )}

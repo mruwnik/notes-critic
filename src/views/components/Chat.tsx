@@ -155,8 +155,8 @@ export const ChatViewComponent: React.FC<ChatViewComponentProps> = ({
     };
 
     return (
-        <div className="notes-critic-chat-view" onKeyDown={handleKeyDown}>
-            <div className="notes-critic-header-container">
+        <div className="nc-flex nc-flex-col nc-h-full" onKeyDown={handleKeyDown}>
+            <div className="nc-p-3 nc-border-b">
                 <ControlPanelReact
                     onFeedback={onFeedback}
                     onClear={handleClear}

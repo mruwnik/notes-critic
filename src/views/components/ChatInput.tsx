@@ -1,10 +1,10 @@
 import React, { useState, useEffect, useRef, KeyboardEvent } from 'react';
 
 const CSS_CLASSES = {
-    inputContainer: 'notes-critic-message-input-container',
-    inputWrapper: 'notes-critic-message-input-wrapper',
-    textArea: 'notes-critic-message-textarea',
-    sendButton: 'notes-critic-message-send-button'
+    inputContainer: 'nc-p-3 nc-border-t',
+    inputWrapper: 'nc-relative nc-w-full',
+    textArea: 'nc-w-full nc-input nc-resize-none nc-min-h-[40px] nc-max-h-32 nc-pr-12',
+    sendButton: 'nc-btn nc-btn--primary nc-btn--square nc-absolute nc-bottom-2 nc-right-2 nc-opacity-60 nc-hover:opacity-80'
 };
 
 export interface ChatInputProps {

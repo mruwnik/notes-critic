@@ -58,25 +58,26 @@ export const ControlPanelReact: React.FC<ControlPanelReactProps> = ({
     const displayText = currentSelection?.title || currentSelection?.id || 'New Conversation';
 
     return (
-        <div className="notes-critic-control-panel">
-            <div className="notes-critic-history-dropdown">
+        <div className="nc-flex nc-items-center nc-gap-2 nc-w-full nc-max-w-full">
+            <div className="nc-relative nc-flex-1 nc-min-w-0">
                 {/* Dropdown button */}
                 <button
-                    className="notes-critic-history-select"
+                    className="nc-btn nc-w-full nc-text-left nc-justify-between nc-border nc-rounded nc-bg-primary nc-text-normal nc-py-2 nc-px-3 nc-min-w-0"
                     onClick={(e) => {
                         e.stopPropagation();
                         setIsOpen(!isOpen);
                     }}
                 >
-                    <span>{displayText}</span>
+                    <span className="nc-truncate nc-mr-2 nc-flex-shrink nc-min-w-0">{displayText}</span>
                 </button>
 
                 {/* Dropdown menu */}
                 {isOpen && (
-                    <div className="notes-critic-history-dropdown-menu">
+                    <div className="nc-absolute nc-w-full nc-bg-primary nc-border nc-rounded nc-shadow-md nc-overflow-y-auto" 
+                         style={{ top: '100%', left: 0, zIndex: 1000, maxHeight: '200px' }}>
                         {/* New Conversation option */}
                         <div
-                            className={`notes-critic-history-new-conversation ${historyList.length === 0 ? 'no-border' : ''}`}
+                            className={`nc-px-3 nc-py-2 nc-cursor-pointer nc-interactive ${historyList.length > 0 ? 'nc-border-b' : ''}`}
                             onClick={() => {
                                 clearConversation();
                                 setIsOpen(false);
@@ -89,19 +90,21 @@ export const ControlPanelReact: React.FC<ControlPanelReactProps> = ({
                         {historyList.map(item => (
                             <div
                                 key={item.id}
-                                className="notes-critic-history-item"
+                                className="nc-relative nc-px-3 nc-py-2 nc-cursor-pointer nc-interactive nc-flex nc-items-center"
+                                style={{ minHeight: '32px' }}
                                 onMouseEnter={() => setHoveredItem(item.id)}
                                 onMouseLeave={() => setHoveredItem(null)}
                                 onClick={() => handleSelectHistory(item.id)}
                             >
-                                <span className="notes-critic-history-item-text">
+                                <span className="nc-flex-1 nc-truncate" style={{ paddingRight: '32px' }}>
                                     {item.title || item.id}
                                 </span>
                                 
                                 {/* Delete button - positioned absolutely to overlay */}
                                 {hoveredItem === item.id && (
                                     <button
-                                        className="notes-critic-history-delete-button"
+                                        className="nc-btn nc-btn--danger nc-btn--xs nc-absolute"
+                                        style={{ right: '8px', top: '50%', transform: 'translateY(-50%)', zIndex: 1 }}
                                         onClick={(e) => handleDeleteHistory(e, item.id)}
                                         title="Delete this history item"
                                     >
@@ -114,16 +117,16 @@ export const ControlPanelReact: React.FC<ControlPanelReactProps> = ({
                 )}
             </div>
             
-            <div className="notes-critic-controls">
+            <div className="nc-flex nc-gap-2 nc-flex-shrink-0">
                 <button
-                    className="notes-critic-icon-button"
+                    className="nc-btn nc-btn--secondary nc-btn--base"
                     title="Get Feedback"
                     onClick={onFeedback}
                 >
                     💬
                 </button>
                 <button
-                    className="notes-critic-icon-button"
+                    className="nc-btn nc-btn--secondary nc-btn--base"
                     title="Clear Current"
                     onClick={onClear}
                 >

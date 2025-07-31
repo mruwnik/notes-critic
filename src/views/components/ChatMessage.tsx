@@ -6,8 +6,8 @@ interface ChatMessageProps {
 
 export const ChatMessage: React.FC<ChatMessageProps> = ({ message }) => {
     return (
-        <pre className="notes-critic-chat-message">
+        <div className="nc-whitespace-pre-wrap nc-text-base">
             {message}
-        </pre>
+        </div>
     );
 };

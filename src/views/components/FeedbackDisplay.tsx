@@ -6,19 +6,19 @@ import { FileChangeViewer } from 'views/components/FileChangeViewer';
 import { ChatMessage } from 'views/components/ChatMessage';
 import { ManualFeedbackViewer } from 'views/components/ManualFeedbackViewer';
 const CSS_CLASSES = {
-    messages: 'notes-critic-messages',
-    stepContainer: 'notes-critic-step-container',
-    detailsSection: 'notes-critic-details-section',
-    userInputElement: 'notes-critic-user-input-element',
-    userInputContent: 'notes-critic-user-input-content',
-    aiResponseElement: 'notes-critic-ai-response-element',
-    responseContent: 'notes-critic-response-content',
-    thinkingContent: 'notes-critic-thinking-content',
-    toolCallContent: 'notes-critic-tool-call-content',
-    signatureContent: 'notes-critic-signature-content',
-    blockContent: 'notes-critic-block-content',
-    timestamp: 'notes-critic-timestamp',
-    rerunButton: 'notes-critic-rerun-button',
+    messages: 'nc-flex-1 nc-overflow-y-auto nc-p-4 nc-space-y-3',
+    stepContainer: 'nc-space-y-2',
+    detailsSection: 'nc-bg-primary-alt nc-rounded nc-p-2',
+    userInputElement: 'nc-border nc-rounded-lg nc-p-4 nc-bg-secondary',
+    userInputContent: 'nc-mt-1',
+    aiResponseElement: 'nc-border nc-rounded-lg nc-p-4 nc-bg-primary-alt nc-relative',
+    responseContent: 'nc-whitespace-pre-wrap nc-text-base',
+    thinkingContent: 'nc-whitespace-pre-wrap nc-text-xs nc-text-muted nc-italic',
+    toolCallContent: 'nc-space-y-1 nc-text-xs nc-text-muted',
+    signatureContent: 'nc-text-xs nc-text-muted nc-italic',
+    blockContent: 'nc-whitespace-pre-wrap nc-text-base nc-bg-secondary nc-p-2 nc-rounded',
+    timestamp: 'nc-text-sm nc-text-muted nc-font-medium nc-mb-2',
+    rerunButton: 'nc-btn nc-btn--secondary nc-btn--xs nc-absolute nc-bottom-2 nc-right-2 nc-opacity-30 nc-hover:opacity-80',
 } as const;
 
 
@@ -99,7 +99,7 @@ const UserInputElement: React.FC<{
                     />
                 ) : (
                     <div
-                        className={turn.userInput.type === 'chat_message' && onRerun ? 'notes-critic-editable' : ''}
+                        className={turn.userInput.type === 'chat_message' && onRerun ? 'nc-cursor-pointer nc-hover:bg-secondary nc-p-1 nc-rounded' : ''}
                         title={turn.userInput.type === 'chat_message' && onRerun ? 'Click to edit' : ''}
                         onClick={handleEditClick}
                     >
@@ -113,7 +113,7 @@ const UserInputElement: React.FC<{
 
 const ProcessingIndicator: React.FC<{ message: string }> = ({ message }) => (
     <div className={CSS_CLASSES.responseContent}>
-        <span className="processing-dots">{message}</span>
+        <span className="nc-text-muted nc-animate-pulse">{message}...</span>
     </div>
 );
 
@@ -132,17 +132,17 @@ const ChunkRenderer: React.FC<{
         case 'thinking':
             return (
                 <DetailsSection title="Thinking">
-                    <pre className={CSS_CLASSES.thinkingContent}>
+                    <div className={CSS_CLASSES.thinkingContent}>
                         {chunk.content || ''}{shouldShowCursor && '▋'}
-                    </pre>
+                    </div>
                 </DetailsSection>
             );
         
         case 'content':
             return (
-                <pre className={CSS_CLASSES.responseContent}>
+                <div className={CSS_CLASSES.responseContent}>
                     {chunk.content || ''}{shouldShowCursor && '▋'}
-                </pre>
+                </div>
             );
         
         case 'tool_call':
@@ -151,19 +151,19 @@ const ChunkRenderer: React.FC<{
             const toolCall = chunk.toolCall;
             const title = chunk.toolCall.result ? 
                 toolCall.name : 
-                <span>calling {toolCall.name} <span className="processing-dots"></span></span>;
+                <span>calling {toolCall.name} <span className="nc-animate-pulse">...</span></span>;
             
             return (
                 <DetailsSection title={title}>
                     <div className={CSS_CLASSES.toolCallContent}>
                         <div>
-                            <strong>Input:</strong><br />
-                            <pre><code>{formatJson(toolCall.input)}</code></pre>
+                            <strong className="nc-text-normal">Input:</strong><br />
+                            <div className="nc-bg-primary nc-p-2 nc-rounded nc-text-xs nc-mt-1 nc-border nc-overflow-x-auto nc-whitespace-pre-wrap nc-break-words nc-max-w-full"><code>{formatJson(toolCall.input)}</code></div>
                         </div>
                         {chunk.toolCall.result && (
                             <div>
-                                <strong>Result:</strong><br />
-                                <pre><code>{formatJson(chunk.toolCall.result)}</code></pre>
+                                <strong className="nc-text-normal">Result:</strong><br />
+                                <pre className="nc-bg-primary nc-p-2 nc-rounded nc-text-xs nc-font-mono nc-mt-1 nc-border nc-overflow-x-auto nc-whitespace-pre-wrap nc-break-words nc-max-w-full"><code>{formatJson(chunk.toolCall.result)}</code></pre>
                             </div>
                         )}
                     </div>
@@ -260,7 +260,7 @@ const AIResponseElement: React.FC<{
             
             {turn.error && (
                 <div className={CSS_CLASSES.responseContent}>
-                    <span className="notes-critic-error-message">
+                    <span className="nc-text-danger">
                         Error: {turn.error}
                     </span>
                 </div>

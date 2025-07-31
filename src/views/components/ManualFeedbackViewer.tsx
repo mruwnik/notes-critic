@@ -16,10 +16,11 @@ export const ManualFeedbackViewer: React.FC<ManualFeedbackViewerProps> = ({
     maxLength = 200 
 }) => {
     return (
-        <div>
-            <strong>Manual feedback: {filename}</strong>
-            <br />
-            {truncateText(content, maxLength)}
+        <div className="nc-space-y-1">
+            <div className="nc-font-semibold nc-text-sm">Manual feedback: {filename}</div>
+            <div className="nc-text-sm nc-text-muted">
+                {truncateText(content, maxLength)}
+            </div>
         </div>
     );
 };

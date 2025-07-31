@@ -126,12 +126,12 @@ const ApiKeySetting: React.FC<ApiKeySettingProps> = ({
     };
 
     const getButtonClass = () => {
-        const baseClass = 'notes-critic-test-button';
+        const baseClasses = 'nc-btn nc-btn--sm nc-ml-2';
         switch (testStatus) {
-            case 'valid': return `${baseClass} notes-critic-test-button-valid`;
+            case 'valid': return `${baseClasses} nc-btn--valid`;
             case 'invalid':
-            case 'error': return `${baseClass} notes-critic-test-button-invalid`;
-            default: return baseClass;
+            case 'error': return `${baseClasses} nc-btn--invalid`;
+            default: return `${baseClasses} nc-btn--secondary`;
         }
     };
 
@@ -147,7 +147,7 @@ const ApiKeySetting: React.FC<ApiKeySettingProps> = ({
                     placeholder={placeholder}
                     value={value}
                     onChange={(e) => onChange(e.target.value)}
-                    className="notes-critic-api-key-input"
+                    className="nc-w-96 nc-min-w-96"
                 />
                 <button
                     className={getButtonClass()}
@@ -170,18 +170,18 @@ const TextAreaSetting: React.FC<TextAreaSettingProps> = ({
     onChange
 }) => {
     return (
-        <div className="setting-item notes-critic-textarea-setting">
+        <div className="setting-item nc-setting-vertical">
             <div className="setting-item-info">
                 <div className="setting-item-name">{name}</div>
                 <div className="setting-item-description">{desc}</div>
             </div>
-            <div className="notes-critic-textarea-container">
+            <div className="nc-setting-control-full">
                 <textarea
                     placeholder={placeholder}
                     value={value}
                     onChange={(e) => onChange(e.target.value)}
                     rows={8}
-                    className="notes-critic-textarea"
+                    className="nc-textarea nc-min-h-32 nc-max-h-80 nc-resize-vertical"
                 />
             </div>
         </div>

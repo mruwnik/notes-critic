@@ -1,13 +1,13 @@
 import React from 'react';
 
 const DIFF_CLASSES = {
-    container: 'diff-container',
-    hunk: 'diff-hunk',
-    header: 'diff-header',
-    added: 'diff-added',
-    removed: 'diff-removed',
-    meta: 'diff-meta',
-    context: 'diff-context',
+    container: 'nc-font-mono nc-text-sm nc-bg-primary-alt nc-border nc-rounded nc-p-3 nc-overflow-x-auto nc-leading-tight',
+    hunk: 'nc-text-accent nc-font-medium nc-bg-modifier-hover nc-px-1 nc-rounded-sm',
+    header: 'nc-text-muted nc-font-medium',
+    added: 'nc-text-success nc-bg-success/10 nc-px-1 nc-rounded-sm',
+    removed: 'nc-text-danger nc-bg-danger/10 nc-px-1 nc-rounded-sm',
+    meta: 'nc-text-muted nc-italic',
+    context: 'nc-text-normal',
 } as const;
 
 interface DiffViewerProps {

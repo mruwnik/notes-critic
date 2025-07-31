@@ -9,36 +9,36 @@ interface RuleCardProps {
 }
 
 const RuleCard: React.FC<RuleCardProps> = ({ rule }) => {
-    const cardClass = `notes-critic-rule-card ${!rule.enabled ? 'notes-critic-rule-disabled' : ''}`;
+    const cardClass = `nc-card nc-card--padded ${!rule.enabled ? 'nc-opacity-60 nc-border-faint' : ''}`;
 
     return (
         <div className={cardClass}>
-            <div className="notes-critic-rule-header">
-                <h4 className="notes-critic-rule-name">{rule.name}</h4>
-                <span className="notes-critic-rule-path">{rule.filePath}</span>
+            <div className="nc-flex nc-justify-between nc-items-center nc-pb-2 nc-border-b nc-mb-2">
+                <h4 className="nc-m-0 nc-text-lg nc-text-normal">{rule.name}</h4>
+                <span className="nc-text-xs nc-text-muted nc-font-mono">{rule.filePath}</span>
             </div>
             
-            <div className="notes-critic-rule-details">
+            <div className="nc-space-y-1">
                 {rule.globs && rule.globs.length > 0 && (
-                    <p><strong>Patterns:</strong> {rule.globs.join(', ')}</p>
+                    <p className="nc-m-0 nc-text-sm nc-text-muted"><strong className="nc-text-normal">Patterns:</strong> {rule.globs.join(', ')}</p>
                 )}
                 
                 {rule.feedbackThreshold && (
-                    <p><strong>Threshold:</strong> {rule.feedbackThreshold} paragraphs</p>
+                    <p className="nc-m-0 nc-text-sm nc-text-muted"><strong className="nc-text-normal">Threshold:</strong> {rule.feedbackThreshold} paragraphs</p>
                 )}
                 
                 {rule.feedbackCooldownSeconds && (
-                    <p><strong>Cooldown:</strong> {rule.feedbackCooldownSeconds}s</p>
+                    <p className="nc-m-0 nc-text-sm nc-text-muted"><strong className="nc-text-normal">Cooldown:</strong> {rule.feedbackCooldownSeconds}s</p>
                 )}
                 
                 {rule.model && (
-                    <p><strong>Model:</strong> {rule.model}</p>
+                    <p className="nc-m-0 nc-text-sm nc-text-muted"><strong className="nc-text-normal">Model:</strong> {rule.model}</p>
                 )}
                 
-                <p><strong>Auto-trigger:</strong> {rule.autoTrigger ? 'Yes' : 'No'}</p>
+                <p className="nc-m-0 nc-text-sm nc-text-muted"><strong className="nc-text-normal">Auto-trigger:</strong> {rule.autoTrigger ? 'Yes' : 'No'}</p>
                 
                 {!rule.enabled && (
-                    <p><strong>Status:</strong> <span style={{color: '#ff6b6b'}}>Disabled</span></p>
+                    <p className="nc-m-0 nc-text-sm nc-text-muted"><strong className="nc-text-normal">Status:</strong> <span className="nc-text-error">Disabled</span></p>
                 )}
             </div>
         </div>
@@ -90,19 +90,19 @@ export const RulesSettings: React.FC = () => {
         }
 
         if (error) {
-            return <p className="notes-critic-error">{error}</p>;
+            return <p className="nc-text-error nc-bg-danger/10 nc-p-3 nc-rounded nc-text-sm">{error}</p>;
         }
 
         if (rules.length === 0) {
             return (
-                <p className="notes-critic-no-rules">
+                <p className="nc-text-center nc-text-muted nc-italic nc-p-8">
                     No rules found. Create a rule file in .notes-critic/rules/ to get started.
                 </p>
             );
         }
 
         return (
-            <div className="notes-critic-rules-list">
+            <div className="nc-max-h-80 nc-overflow-y-auto">
                 {rules.map((rule, index) => (
                     <RuleCard key={`${rule.filePath}-${index}`} rule={rule} />
                 ))}
@@ -111,15 +111,15 @@ export const RulesSettings: React.FC = () => {
     };
 
     return (
-        <div className="notes-critic-rules-overview">
-            <p className="notes-critic-rules-description">
+        <div className="nc-card-container">
+            <p className="nc-mb-4 nc-text-muted">
                 Rules are stored in <code>.notes-critic/rules/</code> directories throughout your vault.
                 Create markdown files with YAML frontmatter to configure file-specific behavior.
             </p>
             
-            <div className="notes-critic-rules-buttons">
+            <div className="nc-flex nc-gap-2 nc-mb-4">
                 <button
-                    className="mod-cta"
+                    className="nc-btn nc-btn--primary nc-btn--base"
                     onClick={handleRefresh}
                     disabled={isRefreshing}
                 >
