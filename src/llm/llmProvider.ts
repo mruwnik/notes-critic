@@ -55,13 +55,14 @@ export class LLMProvider {
         for await (const chunk of this.provider.callLLM(messages, systemPrompt)) {
             yield chunk;
             if (chunk.type === 'tool_call' && chunk.isComplete && chunk.toolCall && !chunk.toolCall.is_server_call) {
+                const toolResult = await this.runToolCall(chunk);
                 yield {
                     type: 'tool_call_result',
                     content: '',
                     id: chunk.toolCall.id,
                     toolCallResult: {
                         id: chunk.toolCall.id,
-                        result: await this.runToolCall(chunk),
+                        result: toolResult,
                         is_server_call: false
                     }
                 };

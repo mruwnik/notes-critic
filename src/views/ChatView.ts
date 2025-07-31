@@ -5,9 +5,11 @@ import { ChatViewComponent } from 'views/components/Chat';
 import { FileManager } from 'FileManager';
 import { ApiKeySetup } from 'views/components/ApiKeySetup';
 import { ConversationChunk } from 'hooks/useConversationManager';
+import { ConversationProvider } from 'hooks/useConversationContext';
 import { RuleManager } from 'rules/RuleManager';
 import React from 'react';
 import { createRoot } from 'react-dom/client';
+import { SettingsProvider } from 'hooks/useSettings';
 
 export class ChatView extends ItemView {
     private currentFile: TFile | null = null;
@@ -19,8 +21,6 @@ export class ChatView extends ItemView {
     private reactRoot: any;
     private reactContainer: HTMLElement;
     private updateReactComponents: () => void = () => { };
-    private chatInputRef: React.RefObject<HTMLTextAreaElement> = React.createRef();
-    private getCurrentConversation: () => ConversationTurn[] = () => [];
     private sendFeedbackMessage: (prompt: string, files?: any[], overrideSettings?: NotesCriticSettings) => Promise<void> = async () => { };
     private fileManager: FileManager;
 
@@ -75,19 +75,18 @@ export class ChatView extends ItemView {
 
         const renderComponents = () => {
             this.reactRoot.render(
-                React.createElement(ChatViewComponent, {
-                    settings: this.plugin.settings,
+                React.createElement(SettingsProvider, {
                     app: this.app,
-                    onFeedback: this.triggerFeedback.bind(this),
-                    onClear: this.clearCurrentNote.bind(this),
-                    onChunkReceived: this.handleConversationChunk.bind(this),
-                    onConversationChange: (conversation: ConversationTurn[]) => {
-                        this.getCurrentConversation = () => conversation;
-                    },
-                    onTriggerFeedbackMessage: (feedbackFunction) => {
-                        this.sendFeedbackMessage = feedbackFunction;
-                    },
-                    chatInputRef: this.chatInputRef
+                    plugin: this.plugin,
+                    children: React.createElement(ConversationProvider, {
+                        children: React.createElement(ChatViewComponent, {
+                            onFeedback: this.triggerFeedback.bind(this),
+                            onChunkReceived: this.handleConversationChunk.bind(this),
+                            onTriggerFeedbackMessage: (feedbackFunction) => {
+                                this.sendFeedbackMessage = feedbackFunction;
+                            },
+                        })
+                    })
                 })
             );
         };
@@ -220,17 +219,6 @@ export class ChatView extends ItemView {
         } catch (error) {
             new Notice(`Error generating feedback: ${error.message}`);
         }
-    }
-
-
-    private clearCurrentNote() {
-        const currentConversation = this.getCurrentConversation();
-        if (!this.currentFile && currentConversation.length === 0) return;
-
-        this.currentFile && this.fileManager.clearNoteData(this.currentFile);
-
-        this.updateUI();
-        new Notice(`Cleared tracking and feedback for ${this.currentFile?.basename}`);
     }
 
     async onClose() {

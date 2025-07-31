@@ -1,7 +1,7 @@
 import { useCallback, useState } from "react";
 import { LLMProvider } from "llm/llmProvider";
-import { App } from "obsidian";
-import { ConversationTurn, NotesCriticSettings } from "types";
+import { ConversationTurn } from "types";
+import { useApp, useSettings } from "./useSettings";
 
 export interface History {
     id: string;
@@ -22,8 +22,11 @@ const parseHistory = ({ id, title, conversation }: History): History => ({
     conversation: conversation?.map(loadTurn)
 });
 
-export const useHistoryManager = (settings: NotesCriticSettings, app: App) => {
-    const [history, setHistory] = useState<Record<string, History>>({});
+export const useHistoryManager = () => {
+    const app = useApp();
+    const { settings } = useSettings();
+    const [history, setHistory] = useState<Map<string, History>>(new Map());
+    const [historyList, setHistoryList] = useState<History[]>([]);
 
     const logName = useCallback((id: string): string => {
         return `${settings.logPath}/${id}.json`;
@@ -48,10 +51,19 @@ export const useHistoryManager = (settings: NotesCriticSettings, app: App) => {
 
         await app.vault.adapter.write(logName(historyItem.id), JSON.stringify(historyItem));
 
-        setHistory(prev => ({
-            ...prev,
-            [historyItem.id]: shortItem(historyItem)
-        }));
+        const shortHistory = shortItem(historyItem);
+        setHistory(prev => new Map(prev.set(historyItem.id, shortHistory)));
+        
+        // Update the array as well
+        setHistoryList(prev => {
+            const filtered = prev.filter(item => item.id !== historyItem.id);
+            return [shortHistory, ...filtered].sort((a, b) => {
+                if (!a.conversation?.[0]?.timestamp || !b.conversation?.[0]?.timestamp) {
+                    return 0;
+                }
+                return b.conversation[0].timestamp.getTime() - a.conversation[0].timestamp.getTime();
+            });
+        });
 
         return historyItem.title;
     }, [settings.logPath, app, logName, makeTitle]);
@@ -80,12 +92,31 @@ export const useHistoryManager = (settings: NotesCriticSettings, app: App) => {
             return historyFile ? shortItem(JSON.parse(historyFile)) : undefined;
         };
 
+        const compare = (a: History, b: History) => {
+            if (!a.conversation?.[0]?.timestamp) {
+                return -1;
+            }
+            if (a.conversation && b.conversation) {
+                return b.conversation[0].timestamp.getTime() - a.conversation[0].timestamp.getTime();
+            }
+            return 0;
+        }
+
         const items = await Promise.all(historyFiles.files.map(extractItem));
-        return items.filter(item => item !== undefined && item.id !== undefined) as History[];
+        const filteredItems = items.filter(item => item !== undefined && item.id !== undefined).sort(compare) as History[];
+        
+        // Update both the Map and the array state
+        const historyMap = new Map<string, History>();
+        filteredItems.forEach(item => historyMap.set(item.id, item));
+        setHistory(historyMap);
+        setHistoryList(filteredItems);
+        
+        return filteredItems;
     }, [app, settings.logPath]);
 
     return {
         history,
+        historyList,
         saveHistory,
         loadHistory,
         listHistory,

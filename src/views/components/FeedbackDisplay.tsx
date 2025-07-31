@@ -5,7 +5,6 @@ import { formatJson } from 'views/formatters';
 import { FileChangeViewer } from 'views/components/FileChangeViewer';
 import { ChatMessage } from 'views/components/ChatMessage';
 import { ManualFeedbackViewer } from 'views/components/ManualFeedbackViewer';
-
 const CSS_CLASSES = {
     messages: 'notes-critic-messages',
     stepContainer: 'notes-critic-step-container',
@@ -33,9 +32,8 @@ interface StreamingState {
 
 interface FeedbackDisplayProps {
     conversation: ConversationTurn[];
+    isInferenceRunning: boolean;
     onRerun?: (turn: ConversationTurn, newMessage?: string) => void;
-    isStreaming?: boolean;
-    currentTurnId?: string;
 }
 
 const FormattedUserInput: React.FC<{ userInput: UserInput }> = ({ userInput }) => {
@@ -238,9 +236,19 @@ const AIResponseElement: React.FC<{
         hasContent: !!step.content
     });
 
+    const hasContent = turn.steps.some(step => 
+        step.content || 
+        step.thinking || 
+        Object.keys(step.toolCalls).length > 0 ||
+        (step.chunks && step.chunks.length > 0)
+    );
+
+    // Only show processing indicator for streaming turns, not completed turns without content
+    const shouldShowProcessing = !turn.steps.length && isStreaming;
+
     return (
         <div className={CSS_CLASSES.aiResponseElement}>
-            {!turn.steps.length  && <ProcessingIndicator message="Processing" />}
+            {shouldShowProcessing && <ProcessingIndicator message="Processing" />}
             
             {turn.steps.map((step, index) => (
                     <StepElement
@@ -273,9 +281,8 @@ const AIResponseElement: React.FC<{
 
 export const FeedbackDisplayReact: React.FC<FeedbackDisplayProps> = ({
     conversation,
+    isInferenceRunning,
     onRerun,
-    isStreaming = false,
-    currentTurnId
 }) => {
     const containerRef = useRef<HTMLDivElement>(null);
 
@@ -289,6 +296,7 @@ export const FeedbackDisplayReact: React.FC<FeedbackDisplayProps> = ({
         scrollToBottom();
     }, [conversation, scrollToBottom]);
 
+
     return (
         <div ref={containerRef} className={CSS_CLASSES.messages}>
             {conversation.map(turn => (
@@ -296,7 +304,7 @@ export const FeedbackDisplayReact: React.FC<FeedbackDisplayProps> = ({
                     <UserInputElement turn={turn} onRerun={onRerun} />
                     <AIResponseElement
                         turn={turn}
-                        isStreaming={isStreaming && turn.id === currentTurnId}
+                        isStreaming={isInferenceRunning && !turn.isComplete}
                         onRerun={onRerun}
                     />
                 </React.Fragment>

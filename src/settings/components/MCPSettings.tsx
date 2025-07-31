@@ -2,7 +2,7 @@ import React, { useState, useCallback } from 'react';
 import { MCPServerConfig } from 'types';
 import { MCPClient } from 'llm/mcpClient';
 import { OAuthClient } from 'llm/oauthClient';
-import { useMCPSettings, useSettings, SettingsProvider } from 'hooks/useSettings';
+import { useMCPSettings, useSettings } from 'hooks/useSettings';
 
 interface MCPServerItemProps {
     server: MCPServerConfig;

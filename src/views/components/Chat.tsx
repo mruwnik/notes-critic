@@ -1,84 +1,95 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { ConversationTurn, NotesCriticSettings } from 'types';
 import { FeedbackDisplayReact } from 'views/components/FeedbackDisplay';
 import { ChatInputReact } from 'views/components/ChatInput';
 import { ControlPanelReact } from 'views/components/ControlPanel';
-import { History, useHistoryManager } from 'hooks/useHistoryManager';
-import { useConversationManager } from 'hooks/useConversationManager';
-import { App } from 'obsidian';
+import { useConversationContext } from 'hooks/useConversationContext';
 
 interface ChatViewComponentProps {
-    settings: NotesCriticSettings;
-    app: App;
-    initialHistory?: History;
-    
     // External event handlers that still need to be handled by ChatView
     onFeedback: () => void;
-    onClear: () => void;
     onChunkReceived?: (chunk: any, turn: ConversationTurn) => void;
-    onConversationChange?: (conversation: ConversationTurn[]) => void;
     onTriggerFeedbackMessage?: (feedbackFunction: (prompt: string, files?: any[], overrideSettings?: NotesCriticSettings) => Promise<void>) => void;
+}
+
+const MainChatInput = ({onSend, conversation, cancelInference, onRestorePrompt, fullConversation}: {
+    onSend: (message: string) => void;
+    conversation: ConversationTurn[];
+    cancelInference: () => void;
+    onRestorePrompt: (callback: (prompt: string) => void) => void;
+    fullConversation: ConversationTurn[];
+}) => {
+    const [chatInputValue, setChatInputValue] = useState('');
+    const [lastSentPrompt, setLastSentPrompt] = useState('');
     
-    chatInputRef?: React.RefObject<HTMLTextAreaElement>;
+    // Register the restore prompt callback
+    useEffect(() => {
+        console.log('Registering restore prompt callback');
+        onRestorePrompt((prompt: string) => {
+            console.log('Restore prompt callback called with:', prompt);
+            setChatInputValue(prompt);
+        });
+    }, [onRestorePrompt]);
+
+    const handleSend = async (message: string) => {
+        setLastSentPrompt(message); // Remember the last sent prompt
+        setChatInputValue('');
+        onSend(message);
+    }
+
+    const handleCancel = () => {
+        // First try to find the most recent turn from the full conversation
+        const lastTurn = fullConversation[fullConversation.length - 1];
+        console.log('Manual cancel - lastTurn:', lastTurn);
+        console.log('Manual cancel - lastSentPrompt:', lastSentPrompt);
+        
+        // If the last turn has no meaningful content, restore its prompt
+        if (lastTurn && (!lastTurn.steps.length || !lastTurn.steps.some(step => 
+            step.content || step.thinking || Object.keys(step.toolCalls).length > 0
+        ))) {
+            console.log('Restoring prompt from last turn:', lastTurn.userInput.prompt);
+            setChatInputValue(lastTurn.userInput.prompt);
+        } else if (lastSentPrompt) {
+            // Fallback to the last sent prompt we remembered
+            console.log('Restoring prompt from lastSentPrompt:', lastSentPrompt);
+            setChatInputValue(lastSentPrompt);
+            setLastSentPrompt(''); // Clear it after using
+        } else {
+            setChatInputValue('');
+        }
+        cancelInference();
+    };
+
+    return (
+        <ChatInputReact
+            initialValue={chatInputValue}
+            onSend={handleSend}
+            onCancel={handleCancel}
+        />
+    )
 }
 
 export const ChatViewComponent: React.FC<ChatViewComponentProps> = ({
-    settings,
-    app,
-    initialHistory,
     onFeedback,
-    onClear,
     onChunkReceived,
-    onConversationChange,
     onTriggerFeedbackMessage,
-    chatInputRef
 }) => {
-    const conversationManager = useConversationManager(settings, app, initialHistory);
-    const historyManager = useHistoryManager(settings, app);
-    const [chatInputValue, setChatInputValue] = useState('');
+    const { 
+        conversation,
+        fullConversation,
+        isInferenceRunning,
+        newConversationRound, 
+        rerunConversationTurn, 
+        clearConversation,
+        cancelInference,
+        setOnTurnCancelledWithoutContent,
+        conversationId
+    } = useConversationContext();
     
-    // Manage selected history internally
-    const [selectedHistoryId, setSelectedHistoryId] = useState<string>(
-        initialHistory?.id || ''
-    );
-
-    // Load history when selectedHistoryId changes
-    useEffect(() => {
-        if (selectedHistoryId && selectedHistoryId !== conversationManager.conversationId) {
-            // Load the selected history item
-            historyManager.loadHistory(selectedHistoryId).then(historyItem => {
-                if (historyItem) {
-                    conversationManager.loadHistory(historyItem);
-                }
-            });
-        }
-    }, [selectedHistoryId, conversationManager.conversationId]); // Only depend on the specific values we need
-
-    // Notify parent of conversation changes
-    useEffect(() => {
-        onConversationChange?.(conversationManager.conversation);
-    }, [conversationManager.conversation, onConversationChange]);
-
-    // Update selected history ID when conversation changes (new conversation started or cleared)
-    useEffect(() => {
-        // Only sync if selectedHistoryId is not empty (we set it to empty when clearing)
-        if (selectedHistoryId && conversationManager.conversationId !== selectedHistoryId) {
-            setSelectedHistoryId(conversationManager.conversationId);
-        }
-    }, [conversationManager.conversationId]); // Remove selectedHistoryId from deps to prevent loops
-
-    // Auto-save conversation when it has content (separate effect to avoid loops)
-    useEffect(() => {
-        const currentHistory = conversationManager.toHistory();
-        if (currentHistory.conversation && currentHistory.conversation.length > 0) {
-            historyManager.saveHistory(currentHistory);
-        }
-    }, [conversationManager.conversation.length, conversationManager.title]); // Only trigger on conversation length or title changes
-
     // Handle feedback messages from parent
     const sendFeedbackMessage = useCallback(async (prompt: string, files?: any[], overrideSettings?: NotesCriticSettings) => {
         try {
-            await conversationManager.newConversationRound({
+            await newConversationRound({
                 prompt,
                 files,
                 overrideSettings,
@@ -89,17 +100,21 @@ export const ChatViewComponent: React.FC<ChatViewComponentProps> = ({
         } catch (error) {
             console.error('Error sending feedback message:', error);
         }
-    }, [conversationManager, onChunkReceived]);
+    }, [newConversationRound, onChunkReceived]);
 
     // Expose feedback message function to parent
     useEffect(() => {
         onTriggerFeedbackMessage?.(sendFeedbackMessage);
     }, [sendFeedbackMessage, onTriggerFeedbackMessage]);
 
+    // Handle restoring prompts when turns are cancelled without content
+    const handleRestorePrompt = useCallback((callback: (prompt: string) => void) => {
+        setOnTurnCancelledWithoutContent(callback);
+    }, [setOnTurnCancelledWithoutContent]);
+
     const handleSend = async (message: string) => {
-        setChatInputValue('');
         try {
-            await conversationManager.newConversationRound({
+            await newConversationRound({
                 prompt: message,
                 callback: (chunk) => {
                     onChunkReceived?.(chunk, chunk.turn!);
@@ -110,15 +125,9 @@ export const ChatViewComponent: React.FC<ChatViewComponentProps> = ({
         }
     };
 
-    const handleCancel = () => {
-        const lastTurn = conversationManager.conversation[conversationManager.conversation.length - 1];
-        setChatInputValue( !lastTurn.steps.length ? lastTurn.userInput.prompt : "");
-        conversationManager.cancelInference();
-    };
-
     const handleRerun = async (turn: ConversationTurn, newMessage?: string) => {
         try {
-            await conversationManager.rerunConversationTurn({
+            await rerunConversationTurn({
                 turnId: turn.id,
                 prompt: newMessage,
                 callback: (chunk) => {
@@ -131,20 +140,17 @@ export const ChatViewComponent: React.FC<ChatViewComponentProps> = ({
     };
 
     const handleClear = () => {
-        conversationManager.clearConversation();
-        // Clear selectedHistoryId to prevent loading old history
-        setSelectedHistoryId('');
-        onClear(); // Also clear file tracking data in ChatView
-    };
-
-    const handleLoadHistory = (id: string) => {
-        setSelectedHistoryId(id); // This will trigger the useEffect to load the history
+        clearConversation();
     };
 
     const handleKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
         if (e.key === 'Escape') {
             e.preventDefault();
-            handleCancel();
+            // Cancel current inference instead of sending a message
+            const lastTurn = conversation[conversation.length - 1];
+            if (lastTurn && !lastTurn.isComplete) {
+                cancelInference();
+            }
         }
     };
 
@@ -152,29 +158,23 @@ export const ChatViewComponent: React.FC<ChatViewComponentProps> = ({
         <div className="notes-critic-chat-view" onKeyDown={handleKeyDown}>
             <div className="notes-critic-header-container">
                 <ControlPanelReact
-                    settings={settings}
-                    app={app}
-                    selectedHistoryId={selectedHistoryId}
                     onFeedback={onFeedback}
                     onClear={handleClear}
-                    onLoadHistory={handleLoadHistory}
                 />
             </div>
             
-            <FeedbackDisplayReact
-                conversation={conversationManager.conversation}
-                onRerun={handleRerun}
-                isStreaming={conversationManager.isInferenceRunning}
-                currentTurnId={conversationManager.conversation.length > 0 ? 
-                    conversationManager.conversation[conversationManager.conversation.length - 1].id : 
-                    undefined}
+            <FeedbackDisplayReact 
+                conversation={conversation}
+                isInferenceRunning={isInferenceRunning}
+                onRerun={handleRerun} 
             />
             
-            <ChatInputReact
-                initialValue={chatInputValue}
-                onSend={handleSend}
-                onCancel={handleCancel}
-                ref={chatInputRef}
+            <MainChatInput 
+                onSend={handleSend} 
+                conversation={conversation}
+                fullConversation={fullConversation}
+                cancelInference={cancelInference}
+                onRestorePrompt={handleRestorePrompt}
             />
         </div>
     );

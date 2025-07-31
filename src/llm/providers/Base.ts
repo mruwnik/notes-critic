@@ -287,6 +287,10 @@ export abstract class BaseLLMProvider {
                 }
             }
 
+            if (currentBlockType === 'tool_call' && currentBlock.index && toolCalls.get(currentBlock.index)) {
+                yield { type: 'tool_call', content: '', toolCall: toolCalls.get(currentBlock.index), id: currentBlock.index };
+            }
+
             yield { type: 'done', content: '', id: currentBlock.index };
         } catch (error) {
             yield {

@@ -96,6 +96,11 @@ export const useSettings = (): SettingsContextType => {
     return context;
 };
 
+export const useApp = () => {
+    const { app } = useSettings();
+    return app;
+};
+
 // Convenience hooks for common operations
 export const useModelSettings = () => {
     const { settings, updateSetting } = useSettings();

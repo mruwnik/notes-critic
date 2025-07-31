@@ -1,8 +1,8 @@
 import { useState, useCallback, useRef, useEffect } from 'react';
 import { ConversationTurn, UserInput, TurnStep, LLMStreamChunk, NotesCriticSettings, LLMFile, TurnChunk } from 'types';
-import { App } from 'obsidian';
 import { LLMProvider } from 'llm/llmProvider';
 import { History } from 'hooks/useHistoryManager';
+import { useApp, useSettings } from './useSettings';
 
 // Generic UUID v4 generator that works across environments
 function generateUUID(): string {
@@ -65,34 +65,36 @@ const ABORT_ERROR_MESSAGE = 'Inference was cancelled';
 
 export interface UseConversationManagerReturn {
     conversation: ConversationTurn[];
+    fullConversation: ConversationTurn[];
     conversationId: string;
     title: string;
     isInferenceRunning: boolean;
     newConversationRound: (params: NewRoundParams) => Promise<ConversationTurn>;
     rerunConversationTurn: (params: RerunTurnParams) => Promise<ConversationTurn>;
-    cancelInference: () => void;
-    cancelTurn: (turnId: string) => void;
+    cancelInference: (preserveContent?: boolean) => void;
+    cancelTurn: (turnId: string, preserveContent?: boolean) => void;
     loadHistory: (history: History) => void;
     clearConversation: () => void;
     toHistory: () => History;
+    onTurnCancelledWithoutContent?: (prompt: string) => void;
+    setOnTurnCancelledWithoutContent: (callback: ((prompt: string) => void) | undefined) => void;
 }
 
-export function useConversationManager(
-    settings: NotesCriticSettings,
-    app: App,
-    initialHistory?: History
-): UseConversationManagerReturn {
-    const [conversation, setConversation] = useState<ConversationTurn[]>(initialHistory?.conversation || []);
-    const [conversationId, setConversationId] = useState<string>(initialHistory?.id || generateUUID());
-    const [title, setTitle] = useState<string>(initialHistory?.title || '');
+export function useConversationManager(): UseConversationManagerReturn {
+    const app = useApp();
+    const { settings } = useSettings();
+    const [conversation, setConversation] = useState<ConversationTurn[]>([]);
+    const [conversationId, setConversationId] = useState<string>(generateUUID());
+    const [title, setTitle] = useState<string>('');
 
+    const [isInferenceRunning, setIsInferenceRunning] = useState(false);
     const turnAbortControllers = useRef(new Map<string, AbortController>());
-
-    const isInferenceRunning = turnAbortControllers.current.size > 0;
-
-    const findTurn = useCallback((turnId: string): ConversationTurn | undefined => {
-        return conversation.find(turn => turn.id === turnId);
-    }, [conversation]);
+    const preserveContentOnCancel = useRef(new Set<string>());
+    const turnsToIgnoreInErrorHandler = useRef(new Set<string>());
+    const [onTurnCancelledWithoutContent, setOnTurnCancelledWithoutContent] = useState<((prompt: string) => void) | undefined>();
+    
+    // Remove auto-save for now to avoid circular dependency issues
+    // TODO: Re-implement auto-save after fixing the circular dependency
 
     const createUserInput = useCallback(({ prompt, files }: Pick<NewRoundParams, 'prompt' | 'files'>): UserInput => {
         return {
@@ -140,22 +142,58 @@ export function useConversationManager(
         }
     }, []);
 
-    const cancelTurn = useCallback((turnId: string): void => {
+    const cancelTurn = useCallback((turnId: string, preserveContent: boolean = false): void => {
         const controller = turnAbortControllers.current.get(turnId);
         if (!controller) return;
 
+        const turn = conversation.find(t => t.id === turnId);
+        
+        if (preserveContent && turn) {
+            // Check if there's meaningful content before deciding to preserve
+            const hasContent = turn.steps.some(step => 
+                step.content || 
+                step.thinking || 
+                Object.keys(step.toolCalls).length > 0 ||
+                (step.chunks && step.chunks.some(chunk => chunk.content && chunk.type !== 'done'))
+            );
+            
+            if (hasContent) {
+                // Mark this turn ID for content preservation before aborting
+                console.log('Turn has content, marking for preservation:', turnId);
+                preserveContentOnCancel.current.add(turnId);
+            } else {
+                // No meaningful content, remove immediately
+                console.log('Turn has no content, removing immediately:', turnId);
+                turnsToIgnoreInErrorHandler.current.add(turnId);
+                
+                // Notify that a turn was cancelled without content so UI can restore the prompt
+                if (onTurnCancelledWithoutContent && turn) {
+                    console.log('Calling onTurnCancelledWithoutContent with prompt:', turn.userInput.prompt);
+                    onTurnCancelledWithoutContent(turn.userInput.prompt);
+                } else {
+                    console.log('No callback registered or no turn found for restore:', {
+                        hasCallback: !!onTurnCancelledWithoutContent,
+                        hasTurn: !!turn
+                    });
+                }
+                
+                setConversation(prev => prev.filter(t => t.id !== turnId));
+            }
+        }
+
         controller.abort();
         turnAbortControllers.current.delete(turnId);
+        setIsInferenceRunning(turnAbortControllers.current.size > 0);
 
-        const turn = conversation.find(t => t.id === turnId);
-        if (turn) {
+        if (turn && !preserveContent) {
+            // Only remove empty steps if not preserving content
             removeEmptyCurrentStep(turn);
         }
     }, [conversation, removeEmptyCurrentStep]);
 
-    const cancelInference = useCallback((): void => {
+    const cancelInference = useCallback((preserveContent: boolean = false): void => {
         for (const turnId of turnAbortControllers.current.keys()) {
-            cancelTurn(turnId);
+            cancelTurn(turnId, preserveContent);
         }
     }, [cancelTurn]);
 
@@ -260,6 +298,7 @@ export function useConversationManager(
         if (!abortController) {
             abortController = new AbortController();
             turnAbortControllers.current.set(turn.id, abortController);
+            setIsInferenceRunning(true);
         }
 
         callback?.({ type: 'step_start', turn });
@@ -286,19 +325,67 @@ export function useConversationManager(
                 callback?.({ type: 'turn_complete', turn });
             }
         } catch (error) {
-            turn.error = error.name === 'AbortError' ? ABORT_ERROR_MESSAGE : error.message;
-            turn.isComplete = true;
-            callback?.({ type: 'error', error: turn.error, turn });
+            // Check if this turn should be ignored (was removed due to no content)
+            const shouldIgnore = turnsToIgnoreInErrorHandler.current.has(turn.id);
+            console.log('Error handler for turn:', turn.id, 'shouldIgnore:', shouldIgnore);
+            
+            if (shouldIgnore) {
+                console.log('Ignoring error handler for removed turn:', turn.id);
+                return; // Early return, don't process this error
+            }
+            
+            // Check if this turn should preserve content on cancellation
+            const shouldPreserveContent = preserveContentOnCancel.current.has(turn.id);
+            console.log('shouldPreserveContent:', shouldPreserveContent);
+            
+            if (shouldPreserveContent) {
+                // Check if there's actually meaningful content to preserve
+                const hasContent = turn.steps.some(step => 
+                    step.content || 
+                    step.thinking || 
+                    Object.keys(step.toolCalls).length > 0 ||
+                    (step.chunks && step.chunks.some(chunk => chunk.content && chunk.type !== 'done'))
+                );
+                
+                if (hasContent) {
+                    // This was cancelled with preserve content and has meaningful content
+                    console.log('Preserving turn with content:', turn.id);
+                    turn.isComplete = true;
+                    callback?.({ type: 'turn_complete', turn });
+                } else {
+                    // No meaningful content - turn should have been removed already by cancelTurn
+                    console.log('Turn has no content in error handler, should be removed:', turn.id);
+                    // Don't add error or do anything, just let it be cleaned up
+                }
+            } else {
+                // Check if turn still exists in conversation (it might have been removed by cancelTurn)
+                setConversation(prev => {
+                    const stillExists = prev.some(t => t.id === turn.id);
+                    console.log('Turn still exists in conversation:', stillExists, 'for turn:', turn.id);
+                    if (stillExists && !turn.isComplete) {
+                        // Regular error or cancelled without preserve content
+                        console.log('Setting error for existing turn:', turn.id);
+                        turn.error = error.name === 'AbortError' ? ABORT_ERROR_MESSAGE : error.message;
+                        turn.isComplete = true;
+                        callback?.({ type: 'error', error: turn.error, turn });
+                    }
+                    return prev;
+                });
+            }
         } finally {
             turnAbortControllers.current.delete(turn.id);
+            preserveContentOnCancel.current.delete(turn.id); // Clean up the preserve flag
+            // Don't clean up turnsToIgnoreInErrorHandler here - let it persist until the turn is actually removed
+            setIsInferenceRunning(turnAbortControllers.current.size > 0);
         }
 
         // Note: History saving is now handled by the parent component that uses useHistoryManager
     }, [conversationId, title, conversation, streamSingleStep, shouldContinueToNextStep, createEmptyStep]);
 
     const newConversationRound = useCallback(async (params: NewRoundParams): Promise<ConversationTurn> => {
+        // If inference is running, cancel it but keep the generated content
         if (isInferenceRunning) {
-            throw new Error('Inference is already running. Please wait for it to complete or cancel it first.');
+            cancelInference(true); // preserveContent = true
         }
 
         const userInput = createUserInput(params);
@@ -317,7 +404,7 @@ export function useConversationManager(
         });
 
         return turn;
-    }, [isInferenceRunning, createUserInput, createConversationTurn, streamTurnResponse]);
+    }, [isInferenceRunning, createUserInput, createConversationTurn, streamTurnResponse, conversation]);
 
     const findAndRemoveTurnFromHistory = useCallback((turnId: string): ConversationTurn => {
         const turnIndex = conversation.findIndex(t => t.id === turnId);
@@ -332,7 +419,7 @@ export function useConversationManager(
 
     const rerunConversationTurn = useCallback(async (params: RerunTurnParams): Promise<ConversationTurn> => {
         const originalTurn = findAndRemoveTurnFromHistory(params.turnId);
-        cancelInference();
+        cancelInference(false);
 
         return newConversationRound({
             prompt: params.prompt ?? originalTurn.userInput.prompt,
@@ -343,17 +430,34 @@ export function useConversationManager(
     }, [findAndRemoveTurnFromHistory, cancelInference, newConversationRound]);
 
     const loadHistory = useCallback((history: History) => {
-        setConversation(history.conversation || []);
+        // Force a clean state update by first clearing, then setting
+        setConversation([]);
         setConversationId(history.id);
         setTitle(history.title || '');
-        cancelInference(); // Cancel any running inference when loading new history
+        
+        // Clear all ignore flags when loading new history
+        turnsToIgnoreInErrorHandler.current.clear();
+        preserveContentOnCancel.current.clear();
+        
+        cancelInference(false); // Cancel any running inference when loading new history
+        
+        // Set conversation after a brief delay to ensure clean state
+        setTimeout(() => {
+            // Force a completely new array reference to ensure React detects the change
+            const newConversation = history.conversation ? [...history.conversation] : [];
+            setConversation(newConversation);
+        }, 0);
     }, [cancelInference]);
 
     const clearConversation = useCallback(() => {
-        cancelInference();
+        cancelInference(false);
         setConversation([]);
         setConversationId(generateUUID());
         setTitle('');
+        
+        // Clear all ignore flags when clearing conversation
+        turnsToIgnoreInErrorHandler.current.clear();
+        preserveContentOnCancel.current.clear();
     }, [cancelInference]);
 
     const toHistory = useCallback((): History => {
@@ -364,8 +468,23 @@ export function useConversationManager(
         };
     }, [conversationId, title, conversation]);
 
+    // Clean up ignore flags for turns that are no longer in conversation
+    useEffect(() => {
+        const conversationIds = new Set(conversation.map(turn => turn.id));
+        const toRemove = Array.from(turnsToIgnoreInErrorHandler.current).filter(id => 
+            !conversationIds.has(id)
+        );
+        toRemove.forEach(id => turnsToIgnoreInErrorHandler.current.delete(id));
+    }, [conversation]);
+
+    // Filter out turns that are marked to be ignored in UI
+    const visibleConversation = conversation.filter(turn => 
+        !turnsToIgnoreInErrorHandler.current.has(turn.id)
+    );
+
     return {
-        conversation,
+        conversation: visibleConversation,
+        fullConversation: conversation,
         conversationId,
         title,
         isInferenceRunning,
@@ -375,6 +494,8 @@ export function useConversationManager(
         cancelTurn,
         loadHistory,
         clearConversation,
-        toHistory
+        toHistory,
+        onTurnCancelledWithoutContent,
+        setOnTurnCancelledWithoutContent
     };
 }

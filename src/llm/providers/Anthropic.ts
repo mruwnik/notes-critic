@@ -5,7 +5,14 @@ import { MCPClient } from "llm/mcpClient";
 import { ConversationTurn } from "types";
 import { NotesCriticSettings } from "types";
 import { LLMFile } from "types";
+import { AVAILABLE_MODELS } from "../../constants";
 
+
+const getModel = (model: string) => AVAILABLE_MODELS[`anthropic/${model}` as keyof typeof AVAILABLE_MODELS]
+
+const canThink = (model: string, thinkingBudgetTokens: number) => {
+    return thinkingBudgetTokens > 1024 && getModel(model)?.thinking
+}
 
 // Anthropic provider implementation
 export class AnthropicProvider extends BaseLLMProvider {
@@ -84,7 +91,7 @@ export class AnthropicProvider extends BaseLLMProvider {
         const wrappedMessages = this.wrapMessages(formattedMessages);
 
         const extras = this.getTools({}, enabledTools)
-        if (thinking && this.settings.thinkingBudgetTokens > 1024) {
+        if (thinking && canThink(this.getModel(), this.settings.thinkingBudgetTokens)) {
             extras.thinking = {
                 type: 'enabled',
                 budget_tokens: this.settings.thinkingBudgetTokens
@@ -102,7 +109,7 @@ export class AnthropicProvider extends BaseLLMProvider {
             },
             body: {
                 model: this.getModel(),
-                max_tokens: this.settings.maxTokens,
+                max_tokens: Math.min(this.settings.maxTokens, getModel(this.getModel())?.maxOutputTokens || 100000),
                 messages: wrappedMessages.messages,
                 system: systemPrompt,
                 ...extras,
@@ -178,6 +185,10 @@ export class AnthropicProvider extends BaseLLMProvider {
                 };
             } else if (obj.type === 'message_stop') {
                 return { isComplete: true };
+            } else if (obj.type === "message_delta") {
+                if (obj.delta.stop_reason === "max_tokens") {
+                    throw new Error("Max tokens reached");
+                }
             }
             return {};
         };
