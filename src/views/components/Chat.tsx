@@ -25,9 +25,7 @@ const MainChatInput = ({onSend, conversation, cancelInference, onRestorePrompt, 
     
     // Register the restore prompt callback
     useEffect(() => {
-        console.log('Registering restore prompt callback');
         onRestorePrompt((prompt: string) => {
-            console.log('Restore prompt callback called with:', prompt);
             setChatInputValue(prompt);
         });
     }, [onRestorePrompt]);
@@ -41,18 +39,14 @@ const MainChatInput = ({onSend, conversation, cancelInference, onRestorePrompt, 
     const handleCancel = () => {
         // First try to find the most recent turn from the full conversation
         const lastTurn = fullConversation[fullConversation.length - 1];
-        console.log('Manual cancel - lastTurn:', lastTurn);
-        console.log('Manual cancel - lastSentPrompt:', lastSentPrompt);
         
         // If the last turn has no meaningful content, restore its prompt
         if (lastTurn && (!lastTurn.steps.length || !lastTurn.steps.some(step => 
             step.content || step.thinking || Object.keys(step.toolCalls).length > 0
         ))) {
-            console.log('Restoring prompt from last turn:', lastTurn.userInput.prompt);
             setChatInputValue(lastTurn.userInput.prompt);
         } else if (lastSentPrompt) {
             // Fallback to the last sent prompt we remembered
-            console.log('Restoring prompt from lastSentPrompt:', lastSentPrompt);
             setChatInputValue(lastSentPrompt);
             setLastSentPrompt(''); // Clear it after using
         } else {

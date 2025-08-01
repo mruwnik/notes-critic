@@ -406,28 +406,40 @@ export function useConversationManager(): UseConversationManagerReturn {
         return turn;
     }, [isInferenceRunning, createUserInput, createConversationTurn, streamTurnResponse, conversation]);
 
-    const findAndRemoveTurnFromHistory = useCallback((turnId: string): ConversationTurn => {
-        const turnIndex = conversation.findIndex(t => t.id === turnId);
+
+    const rerunConversationTurn = useCallback(async (params: RerunTurnParams): Promise<ConversationTurn> => {
+        // First get the turn index and calculate the truncated conversation
+        const turnIndex = conversation.findIndex(t => t.id === params.turnId);
         if (turnIndex === -1) {
-            throw new Error(`Turn with ID ${turnId} not found in conversation history`);
+            throw new Error(`Turn with ID ${params.turnId} not found in conversation history`);
         }
 
         const originalTurn = conversation[turnIndex];
-        setConversation(prev => prev.slice(0, turnIndex));
-        return originalTurn;
-    }, [conversation]);
-
-    const rerunConversationTurn = useCallback(async (params: RerunTurnParams): Promise<ConversationTurn> => {
-        const originalTurn = findAndRemoveTurnFromHistory(params.turnId);
+        const truncatedConversation = conversation.slice(0, turnIndex);
+        
+        // Update the conversation state
+        setConversation(truncatedConversation);
         cancelInference(false);
 
-        return newConversationRound({
-            prompt: params.prompt ?? originalTurn.userInput.prompt,
-            files: params.files ?? originalTurn.userInput.files,
+        const promptToUse = params.prompt ?? originalTurn.userInput.prompt;
+
+        // Create the new turn and add it to the truncated conversation
+        const userInput = createUserInput({ prompt: promptToUse, files: params.files ?? originalTurn.userInput.files });
+        const turn = createConversationTurn(userInput);
+
+        const newConversation = [...truncatedConversation, turn];
+        setConversation(newConversation);
+        params.callback?.({ type: 'turn_start', turn });
+
+        await streamTurnResponse({
+            turn,
             callback: params.callback,
-            overrideSettings: params.overrideSettings
+            overrideSettings: params.overrideSettings,
+            currentConversation: newConversation
         });
-    }, [findAndRemoveTurnFromHistory, cancelInference, newConversationRound]);
+
+        return turn;
+    }, [conversation, cancelInference, createUserInput, createConversationTurn, streamTurnResponse]);
 
     const loadHistory = useCallback((history: History) => {
         // Force a clean state update by first clearing, then setting
