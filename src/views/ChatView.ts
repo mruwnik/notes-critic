@@ -23,6 +23,7 @@ export class ChatView extends ItemView {
     private reactContainer: HTMLElement;
     private updateReactComponents: () => void = () => { };
     private sendFeedbackMessage: (prompt: string, files?: any[], overrideSettings?: NotesCriticSettings) => Promise<void> = async () => { };
+    private sendFileFeedbackMessage: (filename: string, diff: string, prompt: string, files?: any[], overrideSettings?: NotesCriticSettings) => Promise<void> = async () => { };
     private fileManager: FileManager;
 
     constructor(leaf: WorkspaceLeaf, plugin: Plugin & { settings: NotesCriticSettings; saveSettings(): Promise<void> }) {
@@ -86,6 +87,9 @@ export class ChatView extends ItemView {
                                 onChunkReceived: this.handleConversationChunk.bind(this),
                                 onTriggerFeedbackMessage: (feedbackFunction) => {
                                     this.sendFeedbackMessage = feedbackFunction;
+                                },
+                                onTriggerFileFeedbackMessage: (fileFeedbackFunction) => {
+                                    this.sendFileFeedbackMessage = fileFeedbackFunction;
                                 },
                             })
                         })
@@ -201,7 +205,7 @@ export class ChatView extends ItemView {
         const prompt = feedbackPrompt
             .replace(/\${notePath}/g, this.currentFile.path)
             .replace(/\${noteTitle}/g, this.currentFile.basename)
-            .replace(/\${diff}/g, diff);
+            .replace(/\${diff}/g, diff); // Keep full prompt with diff for LLM processing
 
         const files = [{
             type: 'text' as const,
@@ -210,7 +214,14 @@ export class ChatView extends ItemView {
         }];
 
         try {
-            await this.sendFeedbackMessage(prompt, files, await this.currentConfig());
+            // Use structured file feedback instead of plain text
+            await this.sendFileFeedbackMessage(
+                this.currentFile.basename, 
+                diff, 
+                prompt, 
+                files, 
+                await this.currentConfig()
+            );
 
             // Update snapshot baseline
             this.fileManager.updateFeedbackBaseline(this.currentFile!);

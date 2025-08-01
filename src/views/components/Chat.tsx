@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { ConversationTurn, NotesCriticSettings } from 'types';
+import { ConversationTurn, NotesCriticSettings, UserInput } from 'types';
 import { FeedbackDisplayReact } from 'views/components/FeedbackDisplay';
 import { ChatInputReact } from 'views/components/ChatInput';
 import { ControlPanelReact } from 'views/components/ControlPanel';
@@ -11,6 +11,7 @@ interface ChatViewComponentProps {
     onFeedback: () => void;
     onChunkReceived?: (chunk: any, turn: ConversationTurn) => void;
     onTriggerFeedbackMessage?: (feedbackFunction: (prompt: string, files?: any[], overrideSettings?: NotesCriticSettings) => Promise<void>) => void;
+    onTriggerFileFeedbackMessage?: (fileFeedbackFunction: (filename: string, diff: string, prompt: string, files?: any[], overrideSettings?: NotesCriticSettings) => Promise<void>) => void;
 }
 
 const MainChatInput = ({onSend, conversation, cancelInference, onRestorePrompt, fullConversation}: {
@@ -68,6 +69,7 @@ export const ChatViewComponent: React.FC<ChatViewComponentProps> = ({
     onFeedback,
     onChunkReceived,
     onTriggerFeedbackMessage,
+    onTriggerFileFeedbackMessage,
 }) => {
     const { 
         conversation,
@@ -134,10 +136,48 @@ export const ChatViewComponent: React.FC<ChatViewComponentProps> = ({
         }
     }, [newConversationRound, onChunkReceived, handleTurnComplete]);
 
-    // Expose feedback message function to parent
+    // Handle file change feedback with structured diff display
+    const sendFileFeedbackMessage = useCallback(async (
+        filename: string, 
+        diff: string, 
+        prompt: string, 
+        files?: any[], 
+        overrideSettings?: NotesCriticSettings
+    ) => {
+        try {
+            const userInput: UserInput = {
+                type: 'file_change',
+                filename,
+                diff,
+                prompt,
+                files
+            };
+
+            await newConversationRound({
+                prompt, // Still need prompt for LLM processing
+                files,
+                overrideSettings,
+                userInput, // Pass structured user input
+                callback: (chunk) => {
+                    if (chunk.type === 'turn_complete' && chunk.turn) {
+                        handleTurnComplete(chunk.turn);
+                    }
+                    onChunkReceived?.(chunk, chunk.turn!);
+                }
+            });
+        } catch (error) {
+            console.error('Error sending file feedback message:', error);
+        }
+    }, [newConversationRound, onChunkReceived, handleTurnComplete]);
+
+    // Expose feedback message functions to parent
     useEffect(() => {
         onTriggerFeedbackMessage?.(sendFeedbackMessage);
     }, [sendFeedbackMessage, onTriggerFeedbackMessage]);
+
+    useEffect(() => {
+        onTriggerFileFeedbackMessage?.(sendFileFeedbackMessage);
+    }, [sendFileFeedbackMessage, onTriggerFileFeedbackMessage]);
 
     // Handle restoring prompts when turns are cancelled without content
     const handleRestorePrompt = useCallback((callback: (prompt: string) => void) => {

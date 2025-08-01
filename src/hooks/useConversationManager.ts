@@ -41,6 +41,7 @@ interface NewRoundParams {
     callback?: ConversationCallback;
     overrideSettings?: NotesCriticSettings;
     abortController?: AbortController;
+    userInput?: UserInput; // Allow passing custom user input
 }
 
 interface RerunTurnParams {
@@ -97,7 +98,13 @@ export function useConversationManager(): UseConversationManagerReturn {
     // Remove auto-save for now to avoid circular dependency issues
     // TODO: Re-implement auto-save after fixing the circular dependency
 
-    const createUserInput = useCallback(({ prompt, files }: Pick<NewRoundParams, 'prompt' | 'files'>): UserInput => {
+    const createUserInput = useCallback(({ prompt, files, userInput }: Pick<NewRoundParams, 'prompt' | 'files' | 'userInput'>): UserInput => {
+        // If custom userInput is provided, use it
+        if (userInput) {
+            return userInput;
+        }
+        
+        // Default to chat_message type
         return {
             type: 'chat_message',
             message: prompt,
@@ -160,22 +167,14 @@ export function useConversationManager(): UseConversationManagerReturn {
             
             if (hasContent) {
                 // Mark this turn ID for content preservation before aborting
-                console.log('Turn has content, marking for preservation:', turnId);
                 preserveContentOnCancel.current.add(turnId);
             } else {
                 // No meaningful content, remove immediately
-                console.log('Turn has no content, removing immediately:', turnId);
                 turnsToIgnoreInErrorHandler.current.add(turnId);
                 
                 // Notify that a turn was cancelled without content so UI can restore the prompt
                 if (onTurnCancelledWithoutContent && turn) {
-                    console.log('Calling onTurnCancelledWithoutContent with prompt:', turn.userInput.prompt);
                     onTurnCancelledWithoutContent(turn.userInput.prompt);
-                } else {
-                    console.log('No callback registered or no turn found for restore:', {
-                        hasCallback: !!onTurnCancelledWithoutContent,
-                        hasTurn: !!turn
-                    });
                 }
                 
                 setConversation(prev => prev.filter(t => t.id !== turnId));
@@ -328,16 +327,13 @@ export function useConversationManager(): UseConversationManagerReturn {
         } catch (error) {
             // Check if this turn should be ignored (was removed due to no content)
             const shouldIgnore = turnsToIgnoreInErrorHandler.current.has(turn.id);
-            console.log('Error handler for turn:', turn.id, 'shouldIgnore:', shouldIgnore);
             
             if (shouldIgnore) {
-                console.log('Ignoring error handler for removed turn:', turn.id);
                 return; // Early return, don't process this error
             }
             
             // Check if this turn should preserve content on cancellation
             const shouldPreserveContent = preserveContentOnCancel.current.has(turn.id);
-            console.log('shouldPreserveContent:', shouldPreserveContent);
             
             if (shouldPreserveContent) {
                 // Check if there's actually meaningful content to preserve
@@ -354,17 +350,14 @@ export function useConversationManager(): UseConversationManagerReturn {
                     callback?.({ type: 'turn_complete', turn });
                 } else {
                     // No meaningful content - turn should have been removed already by cancelTurn
-                    console.log('Turn has no content in error handler, should be removed:', turn.id);
                     // Don't add error or do anything, just let it be cleaned up
                 }
             } else {
                 // Check if turn still exists in conversation (it might have been removed by cancelTurn)
                 setConversation(prev => {
                     const stillExists = prev.some(t => t.id === turn.id);
-                    console.log('Turn still exists in conversation:', stillExists, 'for turn:', turn.id);
                     if (stillExists && !turn.isComplete) {
                         // Regular error or cancelled without preserve content
-                        console.log('Setting error for existing turn:', turn.id);
                         turn.error = error.name === 'AbortError' ? ABORT_ERROR_MESSAGE : error.message;
                         turn.isComplete = true;
                         callback?.({ type: 'error', error: turn.error, turn });
