@@ -4,6 +4,7 @@ import { FeedbackDisplayReact } from 'views/components/FeedbackDisplay';
 import { ChatInputReact } from 'views/components/ChatInput';
 import { ControlPanelReact } from 'views/components/ControlPanel';
 import { useConversationContext } from 'hooks/useConversationContext';
+import { useHistoryContext } from 'hooks/useHistoryContext';
 
 interface ChatViewComponentProps {
     // External event handlers that still need to be handled by ChatView
@@ -83,8 +84,42 @@ export const ChatViewComponent: React.FC<ChatViewComponentProps> = ({
         clearConversation,
         cancelInference,
         setOnTurnCancelledWithoutContent,
-        conversationId
+        conversationId,
+        title,
+        toHistory,
+        setTitle
     } = useConversationContext();
+    
+    const { saveHistory, listHistory } = useHistoryContext();
+    
+    // Auto-save conversation when turns are completed
+    const handleTurnComplete = useCallback(async (turn: ConversationTurn) => {
+        try {
+            // Allow React state updates to complete
+            await new Promise(resolve => setTimeout(resolve, 50));
+            
+            let history = toHistory();
+            
+            // Ensure the completed turn is included in the conversation
+            if (!history.conversation || history.conversation.length === 0) {
+                // Build conversation from existing turns plus the completed turn
+                const existingTurns = fullConversation.filter(t => t.id !== turn.id);
+                history = {
+                    ...history,
+                    conversation: [...existingTurns, turn]
+                };
+            }
+            
+            // Save and update title
+            const newTitle = await saveHistory(history);
+            setTitle(newTitle);
+            
+            // Update the dropdown list
+            await listHistory();
+        } catch (error) {
+            console.error('Failed to auto-save conversation:', error);
+        }
+    }, [toHistory, saveHistory, setTitle, fullConversation, listHistory]);
     
     // Handle feedback messages from parent
     const sendFeedbackMessage = useCallback(async (prompt: string, files?: any[], overrideSettings?: NotesCriticSettings) => {
@@ -94,13 +129,16 @@ export const ChatViewComponent: React.FC<ChatViewComponentProps> = ({
                 files,
                 overrideSettings,
                 callback: (chunk) => {
+                    if (chunk.type === 'turn_complete' && chunk.turn) {
+                        handleTurnComplete(chunk.turn);
+                    }
                     onChunkReceived?.(chunk, chunk.turn!);
                 }
             });
         } catch (error) {
             console.error('Error sending feedback message:', error);
         }
-    }, [newConversationRound, onChunkReceived]);
+    }, [newConversationRound, onChunkReceived, handleTurnComplete]);
 
     // Expose feedback message function to parent
     useEffect(() => {
@@ -117,6 +155,9 @@ export const ChatViewComponent: React.FC<ChatViewComponentProps> = ({
             await newConversationRound({
                 prompt: message,
                 callback: (chunk) => {
+                    if (chunk.type === 'turn_complete' && chunk.turn) {
+                        handleTurnComplete(chunk.turn);
+                    }
                     onChunkReceived?.(chunk, chunk.turn!);
                 }
             });
@@ -131,6 +172,9 @@ export const ChatViewComponent: React.FC<ChatViewComponentProps> = ({
                 turnId: turn.id,
                 prompt: newMessage,
                 callback: (chunk) => {
+                    if (chunk.type === 'turn_complete' && chunk.turn) {
+                        handleTurnComplete(chunk.turn);
+                    }
                     onChunkReceived?.(chunk, chunk.turn!);
                 }
             });

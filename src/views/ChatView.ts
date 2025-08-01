@@ -6,6 +6,7 @@ import { FileManager } from 'FileManager';
 import { ApiKeySetup } from 'views/components/ApiKeySetup';
 import { ConversationChunk } from 'hooks/useConversationManager';
 import { ConversationProvider } from 'hooks/useConversationContext';
+import { HistoryProvider } from 'hooks/useHistoryContext';
 import { RuleManager } from 'rules/RuleManager';
 import React from 'react';
 import { createRoot } from 'react-dom/client';
@@ -78,13 +79,15 @@ export class ChatView extends ItemView {
                 React.createElement(SettingsProvider, {
                     app: this.app,
                     plugin: this.plugin,
-                    children: React.createElement(ConversationProvider, {
-                        children: React.createElement(ChatViewComponent, {
-                            onFeedback: this.triggerFeedback.bind(this),
-                            onChunkReceived: this.handleConversationChunk.bind(this),
-                            onTriggerFeedbackMessage: (feedbackFunction) => {
-                                this.sendFeedbackMessage = feedbackFunction;
-                            },
+                    children: React.createElement(HistoryProvider, {
+                        children: React.createElement(ConversationProvider, {
+                            children: React.createElement(ChatViewComponent, {
+                                onFeedback: this.triggerFeedback.bind(this),
+                                onChunkReceived: this.handleConversationChunk.bind(this),
+                                onTriggerFeedbackMessage: (feedbackFunction) => {
+                                    this.sendFeedbackMessage = feedbackFunction;
+                                },
+                            })
                         })
                     })
                 })

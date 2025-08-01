@@ -1,5 +1,5 @@
 import React from 'react';
-import { useHistoryManager } from 'hooks/useHistoryManager';
+import { useHistoryContext } from 'hooks/useHistoryContext';
 import { useConversationContext } from 'hooks/useConversationContext';
 
 interface ControlPanelReactProps {
@@ -11,7 +11,7 @@ export const ControlPanelReact: React.FC<ControlPanelReactProps> = ({
     onFeedback,
     onClear,
 }) => {
-    const { history, historyList, listHistory, loadHistory: loadHistoryFromFile, deleteHistory } = useHistoryManager();
+    const { history, historyList, listHistory, loadHistory: loadHistoryFromFile, deleteHistory } = useHistoryContext();
     const { conversationId, loadHistory: loadHistoryIntoConversation, clearConversation } = useConversationContext();
     const [isOpen, setIsOpen] = React.useState(false);
     const [hoveredItem, setHoveredItem] = React.useState<string | null>(null);
@@ -73,8 +73,7 @@ export const ControlPanelReact: React.FC<ControlPanelReactProps> = ({
 
                 {/* Dropdown menu */}
                 {isOpen && (
-                    <div className="nc-absolute nc-w-full nc-bg-primary nc-border nc-rounded nc-shadow-md nc-overflow-y-auto" 
-                         style={{ top: '100%', left: 0, zIndex: 1000, maxHeight: '200px' }}>
+                    <div className="nc-absolute nc-w-full nc-bg-primary nc-border nc-rounded nc-shadow-md nc-overflow-y-auto nc-top-full nc-left-0 nc-z-1000 nc-max-h-48">
                         {/* New Conversation option */}
                         <div
                             className={`nc-px-3 nc-py-2 nc-cursor-pointer nc-interactive ${historyList.length > 0 ? 'nc-border-b' : ''}`}
@@ -90,21 +89,19 @@ export const ControlPanelReact: React.FC<ControlPanelReactProps> = ({
                         {historyList.map(item => (
                             <div
                                 key={item.id}
-                                className="nc-relative nc-px-3 nc-py-2 nc-cursor-pointer nc-interactive nc-flex nc-items-center"
-                                style={{ minHeight: '32px' }}
+                                className="nc-relative nc-px-3 nc-py-2 nc-cursor-pointer nc-interactive nc-flex nc-items-center nc-min-h-8"
                                 onMouseEnter={() => setHoveredItem(item.id)}
                                 onMouseLeave={() => setHoveredItem(null)}
                                 onClick={() => handleSelectHistory(item.id)}
                             >
-                                <span className="nc-flex-1 nc-truncate" style={{ paddingRight: '32px' }}>
+                                <span className="nc-flex-1 nc-truncate nc-pr-8">
                                     {item.title || item.id}
                                 </span>
                                 
                                 {/* Delete button - positioned absolutely to overlay */}
                                 {hoveredItem === item.id && (
                                     <button
-                                        className="nc-btn nc-btn--danger nc-btn--xs nc-absolute"
-                                        style={{ right: '8px', top: '50%', transform: 'translateY(-50%)', zIndex: 1 }}
+                                        className="nc-btn nc-btn--danger nc-btn--xs nc-absolute nc-right-2 nc-top-1/2 nc--translate-y-1/2 nc-z-1"
                                         onClick={(e) => handleDeleteHistory(e, item.id)}
                                         title="Delete this history item"
                                     >

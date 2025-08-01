@@ -9,7 +9,11 @@ export interface History {
     conversation?: ConversationTurn[];
 }
 
-const shortItem = ({ id, title }: History): History => ({ id, title });
+const shortItem = ({ id, title, conversation }: History): History => ({ 
+    id, 
+    title, 
+    conversation: conversation ? [conversation[0]] : undefined 
+});
 
 const loadTurn = (turn: ConversationTurn): ConversationTurn => ({
     ...turn,
@@ -58,10 +62,9 @@ export const useHistoryManager = () => {
         setHistoryList(prev => {
             const filtered = prev.filter(item => item.id !== historyItem.id);
             return [shortHistory, ...filtered].sort((a, b) => {
-                if (!a.conversation?.[0]?.timestamp || !b.conversation?.[0]?.timestamp) {
-                    return 0;
-                }
-                return b.conversation[0].timestamp.getTime() - a.conversation[0].timestamp.getTime();
+                const aTime = a.conversation?.[0]?.timestamp?.getTime() || 0;
+                const bTime = b.conversation?.[0]?.timestamp?.getTime() || 0;
+                return bTime - aTime; // Newest first
             });
         });
 
@@ -89,7 +92,7 @@ export const useHistoryManager = () => {
 
         const extractItem = async (file: string): Promise<History | undefined> => {
             const historyFile = await app.vault.adapter.read(file);
-            return historyFile ? shortItem(JSON.parse(historyFile)) : undefined;
+            return historyFile ? shortItem(parseHistory(JSON.parse(historyFile))) : undefined;
         };
 
         const compare = (a: History, b: History) => {

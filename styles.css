@@ -483,12 +483,48 @@ Consistent primitives and component composition
     top: 0.5rem;
 }
 
+.nc-top-full {
+    top: 100%;
+}
+
 .nc-bottom-2 {
     bottom: 0.5rem;
 }
 
 .nc-right-2 {
     right: 0.5rem;
+}
+
+.nc-left-0 {
+    left: 0;
+}
+
+.nc-z-1000 {
+    z-index: 1000;
+}
+
+.nc-z-1 {
+    z-index: 1;
+}
+
+.nc-max-h-48 {
+    max-height: 12rem;
+}
+
+.nc-pr-8 {
+    padding-right: 2rem;
+}
+
+.nc-min-h-8 {
+    min-height: 2rem;
+}
+
+.nc-top-1\/2 {
+    top: 50%;
+}
+
+.nc--translate-y-1\/2 {
+    transform: translateY(-50%);
 }
 
 .nc-text-center {
@@ -691,7 +727,6 @@ Consistent primitives and component composition
 
 .nc-btn--danger:hover:not(:disabled) {
     background: var(--background-modifier-error);
-    transform: scale(1.05);
 }
 
 .nc-btn--success {

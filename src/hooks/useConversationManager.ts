@@ -76,6 +76,7 @@ export interface UseConversationManagerReturn {
     loadHistory: (history: History) => void;
     clearConversation: () => void;
     toHistory: () => History;
+    setTitle: (title: string) => void;
     onTurnCancelledWithoutContent?: (prompt: string) => void;
     setOnTurnCancelledWithoutContent: (callback: ((prompt: string) => void) | undefined) => void;
 }
@@ -349,7 +350,6 @@ export function useConversationManager(): UseConversationManagerReturn {
                 
                 if (hasContent) {
                     // This was cancelled with preserve content and has meaningful content
-                    console.log('Preserving turn with content:', turn.id);
                     turn.isComplete = true;
                     callback?.({ type: 'turn_complete', turn });
                 } else {
@@ -495,6 +495,7 @@ export function useConversationManager(): UseConversationManagerReturn {
         loadHistory,
         clearConversation,
         toHistory,
+        setTitle,
         onTurnCancelledWithoutContent,
         setOnTurnCancelledWithoutContent
     };
