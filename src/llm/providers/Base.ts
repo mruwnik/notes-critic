@@ -1,4 +1,4 @@
-import { LLMStreamChunk, NotesCriticSettings, ConversationTurn, LLMFile, ChunkType, ToolCallResult, ToolCall } from 'types';
+import { LLMStreamChunk, NotesCriticSettings, ConversationTurn, LLMFile, ChunkType, ToolCallResult, ToolCall, TokenUsage } from 'types';
 import { requestUrl, App } from 'obsidian';
 import { streamFromEndpoint, HttpConfig } from 'llm/streaming';
 import { ObsidianFileProcessor } from 'llm/fileUtils';
@@ -26,6 +26,7 @@ export interface StreamParseResult {
     blockComplete?: {
         index: number;
     };
+    tokenUsage?: TokenUsage;
 }
 
 export interface ProviderConfig {
@@ -279,6 +280,10 @@ export abstract class BaseLLMProvider {
                     currentBlockType = result.isThinking ? 'thinking' : 'content';
                     yield { type: currentBlockType, content: result.content, id: currentBlock.index };
                     blockContent += result.content
+                }
+
+                if (result.tokenUsage) {
+                    yield { type: 'usage', content: '', tokenUsage: result.tokenUsage, id: currentBlock.index };
                 }
 
                 if (result.isComplete) {

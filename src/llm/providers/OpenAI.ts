@@ -192,6 +192,30 @@ export class OpenAIProvider extends BaseLLMProvider {
                 return { isComplete: true };
             }
 
+            // Handle usage information (typically comes in response.done event)
+            if (obj.type === "response.done" && obj.response?.usage) {
+                const usage = obj.response.usage;
+                return {
+                    tokenUsage: {
+                        inputTokens: usage.input_tokens || usage.prompt_tokens || 0,
+                        outputTokens: usage.output_tokens || usage.completion_tokens || 0,
+                        totalTokens: usage.total_tokens || 0
+                    }
+                };
+            }
+
+            // Handle usage in streaming completion
+            if (obj.usage) {
+                const usage = obj.usage;
+                return {
+                    tokenUsage: {
+                        inputTokens: usage.prompt_tokens || 0,
+                        outputTokens: usage.completion_tokens || 0,
+                        totalTokens: usage.total_tokens || 0
+                    }
+                };
+            }
+
             const content = obj.choices?.[0]?.delta?.content;
             if (content) {
                 // OpenAI doesn't support thinking blocks

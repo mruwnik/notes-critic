@@ -189,6 +189,19 @@ export class AnthropicProvider extends BaseLLMProvider {
                 if (obj.delta.stop_reason === "max_tokens") {
                     throw new Error("Max tokens reached");
                 }
+                // Handle usage information
+                if (obj.usage) {
+                    const usage = obj.usage;
+                    return {
+                        tokenUsage: {
+                            inputTokens: usage.input_tokens || 0,
+                            outputTokens: usage.output_tokens || 0,
+                            totalTokens: (usage.input_tokens || 0) + (usage.output_tokens || 0),
+                            cacheCreationInputTokens: usage.cache_creation_input_tokens,
+                            cacheReadInputTokens: usage.cache_read_input_tokens
+                        }
+                    };
+                }
             }
             return {};
         };

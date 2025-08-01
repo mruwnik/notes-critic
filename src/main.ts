@@ -9,11 +9,14 @@ import React from 'react';
 import { createRoot, Root } from 'react-dom/client';
 import { ModelSelector } from 'views/components/ModelSelector';
 import { SettingsProvider } from 'hooks/useSettings';
+import { TokenTracker } from 'services/TokenTracker';
+import { TokenUsageDisplay } from 'views/components/TokenUsageDisplay';
 
 export default class NotesCritic extends Plugin {
     settings: NotesCriticSettings;
     mcpManager: MCPManager;
     settingsEvents: Events = new Events();
+    tokenTracker: TokenTracker = new TokenTracker();
     private statusBarItem: HTMLElement | null = null;
     private statusBarReactRoot: Root | null = null;
 
@@ -98,11 +101,22 @@ export default class NotesCritic extends Plugin {
                 React.createElement(SettingsProvider, {
                     app: this.app,
                     plugin: this,
-                    children: React.createElement(ModelSelector, {
-                        title: "",
-                        desc: "Select AI model",
-                        modelKind: 'model'
-                    })
+                    children: React.createElement('div', {
+                        style: { display: 'flex', alignItems: 'center', gap: '8px' }
+                    }, [
+                        React.createElement(TokenUsageDisplay, {
+                            key: 'tokens',
+                            tokenTracker: this.tokenTracker,
+                            currentModel: this.settings.model,
+                            className: 'status-bar-token-display'
+                        }),
+                        React.createElement(ModelSelector, {
+                            key: 'model',
+                            title: "",
+                            desc: "",
+                            modelKind: 'model'
+                        })
+                    ])
                 })
             );
         }

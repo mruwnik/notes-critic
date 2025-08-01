@@ -114,7 +114,15 @@ export interface ToolCallResult {
 }
 
 
-export type ChunkType = 'thinking' | 'content' | 'error' | 'done' | 'tool_call' | 'tool_call_result' | 'signature' | 'block';
+export interface TokenUsage {
+    inputTokens: number;
+    outputTokens: number;
+    totalTokens: number;
+    cacheCreationInputTokens?: number;
+    cacheReadInputTokens?: number;
+}
+
+export type ChunkType = 'thinking' | 'content' | 'error' | 'done' | 'tool_call' | 'tool_call_result' | 'signature' | 'block' | 'usage';
 export interface LLMStreamChunk {
     type: ChunkType;
     id: string | number;
@@ -122,6 +130,7 @@ export interface LLMStreamChunk {
     isComplete?: boolean;
     toolCall?: ToolCall;
     toolCallResult?: ToolCallResult;
+    tokenUsage?: TokenUsage;
 }
 
 export interface ChatMessage {

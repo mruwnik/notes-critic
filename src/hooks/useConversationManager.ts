@@ -3,6 +3,7 @@ import { ConversationTurn, UserInput, TurnStep, LLMStreamChunk, NotesCriticSetti
 import { LLMProvider } from 'llm/llmProvider';
 import { History } from 'hooks/useHistoryManager';
 import { useApp, useSettings } from './useSettings';
+import { TokenTracker } from '../services/TokenTracker';
 
 // Generic UUID v4 generator that works across environments
 function generateUUID(): string {
@@ -225,6 +226,16 @@ export function useConversationManager(): UseConversationManagerReturn {
             case 'thinking':
                 step.thinking = step.chunks?.filter(c => c.type === 'thinking').map(c => c.content).join('');
                 callback?.({ type: 'thinking', content: lastChunk.content });
+                break;
+            case 'usage':
+                // Handle token usage tracking
+                if (chunk.tokenUsage) {
+                    // Get the plugin instance from app to access tokenTracker
+                    const plugin = (app as any).plugins?.plugins?.['notes-critic'];
+                    if (plugin?.tokenTracker) {
+                        plugin.tokenTracker.addUsage(conversation.id, chunk.tokenUsage);
+                    }
+                }
                 break;
 
             case 'signature':
