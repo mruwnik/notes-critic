@@ -16,6 +16,7 @@ module.exports = {
     '^views/(.*)$': '<rootDir>/tests/__mocks__/views/$1.js',
     '^settings/(.*)$': '<rootDir>/tests/__mocks__/settings/$1.js',
     '^llm/(.*)$': '<rootDir>/tests/__mocks__/llm/$1.js',
+    '^hooks/(.*)$': '<rootDir>/src/hooks/$1',
     '^conversation/(.*)$': '<rootDir>/src/conversation/$1',
     '^feedback/(.*)$': '<rootDir>/tests/__mocks__/feedback/$1.js',
     '^rules/(.*)$': '<rootDir>/src/rules/$1',

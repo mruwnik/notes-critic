@@ -162,12 +162,8 @@ export class OAuthClient {
         }
 
         // Check if we have a stored client
-        console.log("Checking for stored client", `oauth_client_id_${this.serverUrl}`);
         const storedClientId = localStorage.getItem(this.clientIdKey());
         const storedClientSecret = localStorage.getItem(this.clientSecretKey());
-
-        console.log("Stored client ID", storedClientId);
-        console.log("Stored client secret", storedClientSecret);
 
         if (storedClientId) {
             this.client = {
@@ -212,7 +208,7 @@ export class OAuthClient {
         }
 
         const clientInfo = response.json;
-        console.log('Client registration response:', clientInfo);
+        // Client registration response logged
 
         // Store client info
         localStorage.setItem(this.clientIdKey(), clientInfo.client_id);
@@ -226,7 +222,7 @@ export class OAuthClient {
             token_endpoint_auth_method: clientInfo.client_secret ? 'client_secret_post' : 'none'
         };
 
-        console.log('Successfully registered OAuth client:', clientInfo.client_id);
+        // Successfully registered OAuth client
         return this.client;
 
     }
@@ -292,7 +288,7 @@ export class OAuthClient {
             tokenData.append('client_secret', client.client_secret);
         }
 
-        console.log('tokenData', tokenData.toString());
+        // Token data prepared for exchange
         const response = await requestUrl({
             url: metadata.token_endpoint,
             method: 'POST',

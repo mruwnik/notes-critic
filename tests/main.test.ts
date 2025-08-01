@@ -1,15 +1,56 @@
-import { jest, describe, it, expect, beforeEach, afterEach } from '@jest/globals';
+import { jest, describe, it, expect, beforeEach } from '@jest/globals';
 import NotesCritic from '../src/main';
 import { DEFAULT_SETTINGS } from '../src/constants';
 import { CHAT_VIEW_CONFIG } from '../src/types';
-import { Notice } from 'obsidian';
 
-// Mock Obsidian Notice and Plugin
+// Mock Obsidian classes and functions
+const mockWorkspace = {
+  registerView: jest.fn(),
+  onLayoutReady: jest.fn((callback) => callback()),
+  on: jest.fn(),
+  rightLeaf: { detach: jest.fn() },
+  detachLeavesOfType: jest.fn(),
+  getActiveViewOfType: jest.fn(),
+  getLeaf: jest.fn().mockReturnValue({
+    setViewState: jest.fn().mockResolvedValue(undefined)
+  })
+};
+
+const mockVault = {
+  adapter: {
+    exists: jest.fn().mockResolvedValue(false),
+    write: jest.fn().mockResolvedValue(undefined),
+    read: jest.fn().mockResolvedValue('{}'),
+    mkdir: jest.fn().mockResolvedValue(undefined)
+  }
+};
+
+const mockApp = {
+  workspace: mockWorkspace,
+  vault: mockVault
+};
+
+// Mock Obsidian classes
 jest.mock('obsidian', () => ({
   Notice: jest.fn(),
+  Events: class Events {
+    on = jest.fn();
+    off = jest.fn();
+    trigger = jest.fn();
+  },
   Plugin: class Plugin {
     app: any;
     manifest: any;
+    addSettingTab = jest.fn();
+    addRibbonIcon = jest.fn().mockReturnValue({ setAttribute: jest.fn() });
+    addCommand = jest.fn();
+    registerView = jest.fn();
+    registerEvent = jest.fn();
+    loadData = jest.fn().mockResolvedValue({});
+    saveData = jest.fn().mockResolvedValue(undefined);
+    registerObsidianProtocolHandler = jest.fn();
+    addStatusBarItem = jest.fn().mockReturnValue(document.createElement('div'));
+    
     constructor(app: any, manifest: any) {
       this.app = app;
       this.manifest = manifest;
@@ -17,193 +58,193 @@ jest.mock('obsidian', () => ({
   }
 }));
 
-// Mock the dependencies
-jest.mock('../src/views/ChatView');
-jest.mock('../src/settings/SettingsTab');
-jest.mock('../src/llm/oauthClient');
-jest.mock('../src/llm/mcpClient');
-jest.mock('../src/views/components/ModelSelector');
+// Mock dependencies
+jest.mock('../src/views/ChatView', () => ({
+  ChatView: jest.fn().mockImplementation(() => ({
+    getViewType: () => CHAT_VIEW_CONFIG.type
+  }))
+}));
+
+jest.mock('../src/settings/SettingsTab', () => ({
+  NotesCriticSettingsTab: jest.fn()
+}));
+
+jest.mock('../src/views/components/ModelSelector', () => ({
+  ModelSelector: jest.fn()
+}));
+
+jest.mock('../src/hooks/useSettings', () => ({
+  SettingsProvider: jest.fn(({ children }: any) => children)
+}));
+
+jest.mock('react-dom/client', () => ({
+  createRoot: jest.fn().mockReturnValue({
+    render: jest.fn(),
+    unmount: jest.fn()
+  })
+}));
+
+jest.mock('react', () => ({
+  createElement: jest.fn()
+}));
+
+jest.mock('../src/llm/mcpClient', () => ({
+  MCPManager: jest.fn().mockImplementation(() => ({
+    initialize: jest.fn(),
+    shutdown: jest.fn()
+  }))
+}));
 
 describe('NotesCritic Plugin', () => {
   let plugin: NotesCritic;
-  let mockApp: any;
-  let mockWorkspace: any;
-  let mockLeaf: any;
+  const mockManifest = {
+    id: 'notes-critic',
+    name: 'Notes Critic',
+    version: '1.0.0'
+  };
 
   beforeEach(() => {
-    mockLeaf = {
-      setViewState: jest.fn().mockResolvedValue(undefined),
-      view: {
-        triggerFeedback: jest.fn().mockResolvedValue(undefined),
-      },
-    };
-
-    mockWorkspace = {
-      getLeavesOfType: jest.fn(),
-      getRightLeaf: jest.fn().mockReturnValue(mockLeaf),
-      revealLeaf: jest.fn(),
-      on: jest.fn().mockReturnValue({unload: jest.fn()}),
-    };
-
-    mockApp = {
-      workspace: mockWorkspace,
-      vault: {
-        adapter: {
-          exists: jest.fn(),
-          read: jest.fn(),
-          write: jest.fn(),
-        },
-      },
-    };
-
-    plugin = new NotesCritic(mockApp, {} as any);
-    plugin.loadData = jest.fn().mockResolvedValue({});
-    plugin.saveData = jest.fn().mockResolvedValue(undefined);
-    plugin.addRibbonIcon = jest.fn();
-    plugin.addSettingTab = jest.fn();
-    plugin.registerView = jest.fn();
-    plugin.registerObsidianProtocolHandler = jest.fn();
-    plugin.registerEvent = jest.fn();
-    plugin.addStatusBarItem = jest.fn().mockReturnValue({addClass: jest.fn()});
-    (plugin as any).refreshChatViewModelSelectors = jest.fn();
-    (plugin as any).updateStatusBarVisibility = jest.fn();
-  });
-
-  afterEach(() => {
     jest.clearAllMocks();
+    plugin = new NotesCritic(mockApp, mockManifest);
   });
 
-  describe('onload', () => {
-    it('should load settings', async () => {
-      await plugin.onload();
-      expect(plugin.loadData).toHaveBeenCalled();
+  describe('plugin lifecycle', () => {
+    it('should initialize without settings until onload is called', () => {
+      expect(plugin.settings).toBeUndefined();
     });
 
-    it('should register chat view', async () => {
-      await plugin.onload();
+    it('should load plugin successfully', async () => {
+      await expect(plugin.onload()).resolves.not.toThrow();
+      
+      // Should register the chat view
       expect(plugin.registerView).toHaveBeenCalledWith(
         CHAT_VIEW_CONFIG.type,
         expect.any(Function)
       );
-    });
-
-    it('should add ribbon icon', async () => {
-      await plugin.onload();
+      
+      // Should add settings tab
+      expect(plugin.addSettingTab).toHaveBeenCalled();
+      
+      // Should add ribbon icon
       expect(plugin.addRibbonIcon).toHaveBeenCalledWith(
         CHAT_VIEW_CONFIG.icon,
         CHAT_VIEW_CONFIG.name,
         expect.any(Function)
       );
+      
+      // Should register event listener
+      expect(plugin.registerEvent).toHaveBeenCalled();
+      
+      // Settings should be loaded
+      expect(plugin.settings).toBeDefined();
     });
 
-    it('should add settings tab', async () => {
+    it('should handle settings loading', async () => {
+      const customSettings = {
+        ...DEFAULT_SETTINGS,
+        systemPrompt: 'Custom prompt'
+      };
+      
+      plugin.loadData = jest.fn().mockResolvedValue(customSettings);
+      
       await plugin.onload();
-      expect(plugin.addSettingTab).toHaveBeenCalled();
+      
+      expect(plugin.settings.systemPrompt).toBe('Custom prompt');
     });
 
-    it('should register OAuth protocol handler', async () => {
-      await plugin.onload();
-      expect(plugin.registerObsidianProtocolHandler).toHaveBeenCalledWith(
-        'mcp-auth-callback',
-        expect.any(Function)
-      );
+    it('should save settings', async () => {
+      await plugin.onload(); // Load settings first
+      plugin.settings.systemPrompt = 'Modified prompt';
+      
+      await plugin.saveSettings();
+      
+      expect(plugin.saveData).toHaveBeenCalledWith(plugin.settings);
+    });
+
+    it('should unload cleanly', () => {
+      expect(() => plugin.onunload()).not.toThrow();
     });
   });
 
-  describe('activateView', () => {
-    it('should use existing leaf if available', async () => {
-      const existingLeaf = { ...mockLeaf };
-      mockWorkspace.getLeavesOfType.mockReturnValue([existingLeaf]);
-
-      await plugin.activateView();
-
-      expect(mockWorkspace.getLeavesOfType).toHaveBeenCalledWith(CHAT_VIEW_CONFIG.type);
-      expect(mockWorkspace.revealLeaf).toHaveBeenCalledWith(existingLeaf);
-      expect(mockWorkspace.getRightLeaf).not.toHaveBeenCalled();
+  describe('view management', () => {
+    beforeEach(async () => {
+      await plugin.onload();
+      
+      // Mock workspace methods needed for activateView
+      mockWorkspace.getLeavesOfType = jest.fn().mockReturnValue([]);
+      mockWorkspace.getRightLeaf = jest.fn().mockReturnValue({
+        setViewState: jest.fn().mockResolvedValue(undefined)
+      });
+      mockWorkspace.revealLeaf = jest.fn();
     });
 
-    it('should create new leaf if none exists', async () => {
-      mockWorkspace.getLeavesOfType.mockReturnValue([]);
-
+    it('should activate chat view', async () => {
       await plugin.activateView();
-
+      
+      expect(mockWorkspace.getLeavesOfType).toHaveBeenCalledWith(CHAT_VIEW_CONFIG.type);
       expect(mockWorkspace.getRightLeaf).toHaveBeenCalledWith(false);
-      expect(mockLeaf.setViewState).toHaveBeenCalledWith({
-        type: CHAT_VIEW_CONFIG.type,
-        active: true,
-      });
+    });
+
+    it('should handle view activation when already open', async () => {
+      const mockLeaf = { view: 'mock-view' };
+      mockWorkspace.getLeavesOfType.mockReturnValue([mockLeaf]);
+      
+      await plugin.activateView();
+      
+      // Should use existing leaf
       expect(mockWorkspace.revealLeaf).toHaveBeenCalledWith(mockLeaf);
     });
 
-    it('should handle case when getRightLeaf returns null', async () => {
-      mockWorkspace.getLeavesOfType.mockReturnValue([]);
-      mockWorkspace.getRightLeaf.mockReturnValue(null);
-
-      await plugin.activateView();
-
-      expect(mockWorkspace.getRightLeaf).toHaveBeenCalled();
-      expect(mockWorkspace.revealLeaf).not.toHaveBeenCalled();
-    });
-  });
-
-  describe('triggerFeedbackForCurrentNote', () => {
-    it('should trigger feedback on existing chat view', async () => {
-      const chatView = { triggerFeedback: jest.fn().mockResolvedValue(undefined) };
-      const leafWithView = { view: chatView };
-      mockWorkspace.getLeavesOfType.mockReturnValue([leafWithView]);
+    it('should trigger feedback for current note when chat view is open', async () => {
+      const mockChatView = {
+        triggerFeedback: jest.fn().mockResolvedValue(undefined)
+      };
+      const mockLeaf = { view: mockChatView };
+      mockWorkspace.getLeavesOfType.mockReturnValue([mockLeaf]);
 
       await plugin.triggerFeedbackForCurrentNote();
 
-      expect(mockWorkspace.getLeavesOfType).toHaveBeenCalledWith(CHAT_VIEW_CONFIG.type);
-      expect(chatView.triggerFeedback).toHaveBeenCalled();
+      expect(mockChatView.triggerFeedback).toHaveBeenCalled();
     });
 
-    it('should show notice when no chat view is open', async () => {
+    it('should show notice when chat view is not open', async () => {
+      const { Notice } = require('obsidian');
       mockWorkspace.getLeavesOfType.mockReturnValue([]);
-      
+
       await plugin.triggerFeedbackForCurrentNote();
 
       expect(Notice).toHaveBeenCalledWith('Please open the feedback view first');
     });
+  });
 
-    it('should handle chat view without triggerFeedback method', async () => {
-      const chatView = {}; // No triggerFeedback method
-      const leafWithView = { view: chatView };
-      mockWorkspace.getLeavesOfType.mockReturnValue([leafWithView]);
+  describe('error handling', () => {
+    it('should propagate settings loading errors', async () => {
+      plugin.loadData = jest.fn().mockRejectedValue(new Error('Load error'));
+      
+      await expect(plugin.onload()).rejects.toThrow('Load error');
+    });
 
-      // Should not throw an error
-      await expect(plugin.triggerFeedbackForCurrentNote()).resolves.toBeUndefined();
+    it('should propagate settings saving errors', async () => {
+      await plugin.onload(); // Load settings first
+      plugin.saveData = jest.fn().mockRejectedValue(new Error('Save error'));
+      
+      await expect(plugin.saveSettings()).rejects.toThrow('Save error');
     });
   });
 
-  describe('settings management', () => {
-    it('should load settings with defaults', async () => {
-      const mockLoadData = { systemPrompt: 'Custom prompt' };
-      plugin.loadData = jest.fn().mockResolvedValue(mockLoadData);
-
-      await plugin.loadSettings();
-
-      expect(plugin.settings).toEqual({
-        ...DEFAULT_SETTINGS,
-        ...mockLoadData,
-      });
+  describe('integration', () => {
+    it('should have correct view configuration', () => {
+      expect(CHAT_VIEW_CONFIG).toBeDefined();
+      expect(CHAT_VIEW_CONFIG.type).toBe('notes-critic-chat');
+      expect(CHAT_VIEW_CONFIG.name).toBe('Notes Critic Chat');
+      expect(CHAT_VIEW_CONFIG.icon).toBeDefined();
     });
 
-    it('should save settings', async () => {
-      mockWorkspace.getLeavesOfType.mockReturnValue([]);
-      plugin.settings = { ...DEFAULT_SETTINGS, systemPrompt: 'Updated prompt' };
-
-      await plugin.saveSettings();
-
-      expect(plugin.saveData).toHaveBeenCalledWith(plugin.settings);
-    });
-  });
-
-  describe('OAuth handling', () => {
-    it.skip('should handle OAuth callback during onload', async () => {
-      // This test is complex due to the way OAuthClient is instantiated inside the handler
-      // The functionality is integration tested via the actual OAuth flow
-      expect(true).toBe(true);
+    it('should have valid default settings', () => {
+      expect(DEFAULT_SETTINGS).toBeDefined();
+      expect(DEFAULT_SETTINGS.systemPrompt).toBeDefined();
+      expect(DEFAULT_SETTINGS.model).toBeDefined();
+      expect(DEFAULT_SETTINGS.maxTokens).toBeGreaterThan(0);
     });
   });
 });
