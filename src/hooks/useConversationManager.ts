@@ -95,7 +95,7 @@ export function useConversationManager(): UseConversationManagerReturn {
     const preserveContentOnCancel = useRef(new Set<string>());
     const turnsToIgnoreInErrorHandler = useRef(new Set<string>());
     const [onTurnCancelledWithoutContent, setOnTurnCancelledWithoutContent] = useState<((prompt: string) => void) | undefined>();
-    
+
     // Remove auto-save for now to avoid circular dependency issues
     // TODO: Re-implement auto-save after fixing the circular dependency
 
@@ -104,7 +104,7 @@ export function useConversationManager(): UseConversationManagerReturn {
         if (userInput) {
             return userInput;
         }
-        
+
         // Default to chat_message type
         return {
             type: 'chat_message',
@@ -156,28 +156,28 @@ export function useConversationManager(): UseConversationManagerReturn {
         if (!controller) return;
 
         const turn = conversation.find(t => t.id === turnId);
-        
+
         if (preserveContent && turn) {
             // Check if there's meaningful content before deciding to preserve
-            const hasContent = turn.steps.some(step => 
-                step.content || 
-                step.thinking || 
+            const hasContent = turn.steps.some(step =>
+                step.content ||
+                step.thinking ||
                 Object.keys(step.toolCalls).length > 0 ||
                 (step.chunks && step.chunks.some(chunk => chunk.content && chunk.type !== 'done'))
             );
-            
+
             if (hasContent) {
                 // Mark this turn ID for content preservation before aborting
                 preserveContentOnCancel.current.add(turnId);
             } else {
                 // No meaningful content, remove immediately
                 turnsToIgnoreInErrorHandler.current.add(turnId);
-                
+
                 // Notify that a turn was cancelled without content so UI can restore the prompt
                 if (onTurnCancelledWithoutContent && turn) {
                     onTurnCancelledWithoutContent(turn.userInput.prompt);
                 }
-                
+
                 setConversation(prev => prev.filter(t => t.id !== turnId));
             }
         }
@@ -233,7 +233,7 @@ export function useConversationManager(): UseConversationManagerReturn {
                     // Get the plugin instance from app to access tokenTracker
                     const plugin = (app as any).plugins?.plugins?.['notes-critic'];
                     if (plugin?.tokenTracker) {
-                        plugin.tokenTracker.addUsage(conversation.id, chunk.tokenUsage);
+                        plugin.tokenTracker.addUsage(conversationId, chunk.tokenUsage);
                     }
                 }
                 break;
@@ -338,23 +338,23 @@ export function useConversationManager(): UseConversationManagerReturn {
         } catch (error) {
             // Check if this turn should be ignored (was removed due to no content)
             const shouldIgnore = turnsToIgnoreInErrorHandler.current.has(turn.id);
-            
+
             if (shouldIgnore) {
                 return; // Early return, don't process this error
             }
-            
+
             // Check if this turn should preserve content on cancellation
             const shouldPreserveContent = preserveContentOnCancel.current.has(turn.id);
-            
+
             if (shouldPreserveContent) {
                 // Check if there's actually meaningful content to preserve
-                const hasContent = turn.steps.some(step => 
-                    step.content || 
-                    step.thinking || 
+                const hasContent = turn.steps.some(step =>
+                    step.content ||
+                    step.thinking ||
                     Object.keys(step.toolCalls).length > 0 ||
                     (step.chunks && step.chunks.some(chunk => chunk.content && chunk.type !== 'done'))
                 );
-                
+
                 if (hasContent) {
                     // This was cancelled with preserve content and has meaningful content
                     turn.isComplete = true;
@@ -420,7 +420,7 @@ export function useConversationManager(): UseConversationManagerReturn {
 
         const originalTurn = conversation[turnIndex];
         const truncatedConversation = conversation.slice(0, turnIndex);
-        
+
         // Update the conversation state
         setConversation(truncatedConversation);
         cancelInference(false);
@@ -450,13 +450,13 @@ export function useConversationManager(): UseConversationManagerReturn {
         setConversation([]);
         setConversationId(history.id);
         setTitle(history.title || '');
-        
+
         // Clear all ignore flags when loading new history
         turnsToIgnoreInErrorHandler.current.clear();
         preserveContentOnCancel.current.clear();
-        
+
         cancelInference(false); // Cancel any running inference when loading new history
-        
+
         // Set conversation after a brief delay to ensure clean state
         setTimeout(() => {
             // Force a completely new array reference to ensure React detects the change
@@ -470,7 +470,7 @@ export function useConversationManager(): UseConversationManagerReturn {
         setConversation([]);
         setConversationId(generateUUID());
         setTitle('');
-        
+
         // Clear all ignore flags when clearing conversation
         turnsToIgnoreInErrorHandler.current.clear();
         preserveContentOnCancel.current.clear();
@@ -487,14 +487,14 @@ export function useConversationManager(): UseConversationManagerReturn {
     // Clean up ignore flags for turns that are no longer in conversation
     useEffect(() => {
         const conversationIds = new Set(conversation.map(turn => turn.id));
-        const toRemove = Array.from(turnsToIgnoreInErrorHandler.current).filter(id => 
+        const toRemove = Array.from(turnsToIgnoreInErrorHandler.current).filter(id =>
             !conversationIds.has(id)
         );
         toRemove.forEach(id => turnsToIgnoreInErrorHandler.current.delete(id));
     }, [conversation]);
 
     // Filter out turns that are marked to be ignored in UI
-    const visibleConversation = conversation.filter(turn => 
+    const visibleConversation = conversation.filter(turn =>
         !turnsToIgnoreInErrorHandler.current.has(turn.id)
     );
 

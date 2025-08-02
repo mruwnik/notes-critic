@@ -31,7 +31,7 @@ const CSS_CLASSES = {
 };
 
 // Pure helper functions
-const getFileType = (extension: string): 'text' | 'image' | 'pdf' => {
+export const getFileType = (extension: string): 'text' | 'image' | 'pdf' => {
     const imageExts = ['png', 'jpg', 'jpeg', 'gif', 'webp', 'svg'];
     const textExts = ['md', 'txt', 'js', 'ts', 'tsx', 'jsx', 'css', 'html', 'json', 'yaml', 'yml'];
     
@@ -40,7 +40,7 @@ const getFileType = (extension: string): 'text' | 'image' | 'pdf' => {
     return 'text';
 };
 
-const fuzzySearchGeneric = (query: string, items: (TFile | TFolder)[], type: 'file' | 'folder'): FileResult[] => {
+export const fuzzySearchGeneric = (query: string, items: (TFile | TFolder)[], type: 'file' | 'folder'): FileResult[] => {
     if (!query) return [];
     
     const queryLower = query.toLowerCase();
@@ -89,11 +89,11 @@ const fuzzySearchGeneric = (query: string, items: (TFile | TFolder)[], type: 'fi
     return results.sort((a, b) => b.score - a.score).slice(0, 8);
 };
 
-const fuzzySearchFiles = (query: string, files: TFile[]): FileResult[] => {
+export const fuzzySearchFiles = (query: string, files: TFile[]): FileResult[] => {
     return fuzzySearchGeneric(query, files, 'file');
 };
 
-const fuzzySearchFolders = (query: string, folders: TFolder[]): FileResult[] => {
+export const fuzzySearchFolders = (query: string, folders: TFolder[]): FileResult[] => {
     return fuzzySearchGeneric(query, folders, 'folder');
 };
 
