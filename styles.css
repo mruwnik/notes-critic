@@ -142,6 +142,10 @@ Consistent primitives and component composition
     padding-bottom: 2rem;
 }
 
+.nc-pb-4 {
+    padding-bottom: 1rem;
+}
+
 .nc-m-0 {
     margin: 0;
 }
@@ -515,8 +519,16 @@ Consistent primitives and component composition
     padding-right: 2rem;
 }
 
+.nc-pr-12 {
+    padding-right: 3rem;
+}
+
 .nc-min-h-8 {
     min-height: 2rem;
+}
+
+.nc-min-h-10 {
+    min-height: 40px;
 }
 
 .nc-top-1\/2 {

@@ -3,8 +3,8 @@ import React, { useState, useEffect, useRef, KeyboardEvent } from 'react';
 const CSS_CLASSES = {
     inputContainer: 'nc-p-3 nc-border-t',
     inputWrapper: 'nc-relative nc-w-full',
-    textArea: 'nc-w-full nc-input nc-resize-none nc-min-h-[40px] nc-max-h-32 nc-pr-12',
-    sendButton: 'nc-btn nc-btn--primary nc-btn--square nc-absolute nc-bottom-2 nc-right-2 nc-opacity-60 nc-hover:opacity-80'
+    textArea: 'nc-w-full nc-input nc-resize-none nc-min-h-10 nc-max-h-32 nc-pr-12',
+    sendButton: 'nc-btn nc-btn--primary nc-btn--square nc-absolute nc-bottom-2 nc-right-2 nc-opacity-60 nc-hover\:opacity-80'
 };
 
 export interface ChatInputProps {
@@ -36,12 +36,29 @@ export const ChatInputReact = React.forwardRef<HTMLTextAreaElement, ChatInputPro
 
     useEffect(() => {
         autoResize();
+        scrollToKeepInputVisible();
     }, [value]);
 
     const autoResize = () => {
         if (textAreaRef.current) {
             textAreaRef.current.style.height = 'auto';
             textAreaRef.current.style.height = Math.max(textAreaRef.current.scrollHeight, 20) + 'px';
+        }
+    };
+
+    const scrollToKeepInputVisible = () => {
+        if (textAreaRef.current) {
+            // Find the closest scrollable parent container
+            let element = textAreaRef.current.parentElement;
+            while (element) {
+                const style = window.getComputedStyle(element);
+                if (style.overflowY === 'auto' || style.overflowY === 'scroll') {
+                    // Found the scrollable container, scroll to bottom to keep input visible
+                    element.scrollTop = element.scrollHeight;
+                    break;
+                }
+                element = element.parentElement;
+            }
         }
     };
 
