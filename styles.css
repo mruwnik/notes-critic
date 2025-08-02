@@ -146,6 +146,10 @@ Consistent primitives and component composition
     padding-bottom: 1rem;
 }
 
+.nc-h-auto {
+    height: auto;
+}
+
 .nc-m-0 {
     margin: 0;
 }

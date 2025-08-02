@@ -91,6 +91,7 @@ export class ChatView extends ItemView {
                                 onTriggerFileFeedbackMessage: (fileFeedbackFunction) => {
                                     this.sendFileFeedbackMessage = fileFeedbackFunction;
                                 },
+                                vault: this.app.vault,
                             })
                         })
                     })

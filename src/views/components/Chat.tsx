@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { ConversationTurn, NotesCriticSettings, UserInput } from 'types';
+import { ConversationTurn, NotesCriticSettings, UserInput, LLMFile } from 'types';
+import { Vault } from 'obsidian';
 import { FeedbackDisplayReact } from 'views/components/FeedbackDisplay';
 import { ChatInputReact } from 'views/components/ChatInput';
 import { ControlPanelReact } from 'views/components/ControlPanel';
@@ -12,14 +13,16 @@ interface ChatViewComponentProps {
     onChunkReceived?: (chunk: any, turn: ConversationTurn) => void;
     onTriggerFeedbackMessage?: (feedbackFunction: (prompt: string, files?: any[], overrideSettings?: NotesCriticSettings) => Promise<void>) => void;
     onTriggerFileFeedbackMessage?: (fileFeedbackFunction: (filename: string, diff: string, prompt: string, files?: any[], overrideSettings?: NotesCriticSettings) => Promise<void>) => void;
+    vault?: Vault;
 }
 
-const MainChatInput = ({onSend, conversation, cancelInference, onRestorePrompt, fullConversation}: {
-    onSend: (message: string) => void;
+const MainChatInput = ({onSend, conversation, cancelInference, onRestorePrompt, fullConversation, vault}: {
+    onSend: (message: string, files?: LLMFile[]) => void;
     conversation: ConversationTurn[];
     cancelInference: () => void;
     onRestorePrompt: (callback: (prompt: string) => void) => void;
     fullConversation: ConversationTurn[];
+    vault?: Vault;
 }) => {
     const [chatInputValue, setChatInputValue] = useState('');
     const [lastSentPrompt, setLastSentPrompt] = useState('');
@@ -31,10 +34,10 @@ const MainChatInput = ({onSend, conversation, cancelInference, onRestorePrompt, 
         });
     }, [onRestorePrompt]);
 
-    const handleSend = async (message: string) => {
+    const handleSend = async (message: string, files?: LLMFile[]) => {
         setLastSentPrompt(message); // Remember the last sent prompt
         setChatInputValue('');
-        onSend(message);
+        onSend(message, files);
     }
 
     const handleCancel = () => {
@@ -61,6 +64,7 @@ const MainChatInput = ({onSend, conversation, cancelInference, onRestorePrompt, 
             initialValue={chatInputValue}
             onSend={handleSend}
             onCancel={handleCancel}
+            vault={vault}
         />
     )
 }
@@ -70,6 +74,7 @@ export const ChatViewComponent: React.FC<ChatViewComponentProps> = ({
     onChunkReceived,
     onTriggerFeedbackMessage,
     onTriggerFileFeedbackMessage,
+    vault,
 }) => {
     const { 
         conversation,
@@ -184,10 +189,11 @@ export const ChatViewComponent: React.FC<ChatViewComponentProps> = ({
         setOnTurnCancelledWithoutContent(callback);
     }, [setOnTurnCancelledWithoutContent]);
 
-    const handleSend = async (message: string) => {
+    const handleSend = async (message: string, files?: LLMFile[]) => {
         try {
             await newConversationRound({
                 prompt: message,
+                files,
                 callback: (chunk) => {
                     if (chunk.type === 'turn_complete' && chunk.turn) {
                         handleTurnComplete(chunk.turn);
@@ -253,6 +259,7 @@ export const ChatViewComponent: React.FC<ChatViewComponentProps> = ({
                 fullConversation={fullConversation}
                 cancelInference={cancelInference}
                 onRestorePrompt={handleRestorePrompt}
+                vault={vault}
             />
         </div>
     );

@@ -1,4 +1,7 @@
 import React, { useState, useEffect, useRef, KeyboardEvent } from 'react';
+import { Vault } from 'obsidian';
+import { LLMFile } from 'types';
+import { FilePicker } from './FilePicker';
 
 const CSS_CLASSES = {
     inputContainer: 'nc-p-3 nc-border-t',
@@ -11,9 +14,10 @@ export interface ChatInputProps {
     placeholder?: string;
     initialValue?: string;
     showContainer?: boolean;
-    onSend: (message: string) => Promise<void>;
+    onSend: (message: string, files?: LLMFile[]) => Promise<void>;
     onCancel?: () => void;
     disabled?: boolean;
+    vault?: Vault;
 }
 
 export const ChatInputReact = React.forwardRef<HTMLTextAreaElement, ChatInputProps>(({
@@ -22,9 +26,11 @@ export const ChatInputReact = React.forwardRef<HTMLTextAreaElement, ChatInputPro
     showContainer = true,
     onSend,
     onCancel,
-    disabled = false
+    disabled = false,
+    vault
 }, ref) => {
     const [value, setValue] = useState(initialValue);
+    const [selectedFiles, setSelectedFiles] = useState<LLMFile[]>([]);
     const textAreaRef = useRef<HTMLTextAreaElement>(null);
     
     // Combine external ref with internal ref
@@ -75,8 +81,9 @@ export const ChatInputReact = React.forwardRef<HTMLTextAreaElement, ChatInputPro
         const message = value.trim();
         if (message && !disabled) {
             setValue('');
+            setSelectedFiles([]);
             try {
-                await onSend(message);
+                await onSend(message, selectedFiles.length > 0 ? selectedFiles : undefined);
             } catch (error) {
                 console.error('Send error:', error);
             }
@@ -85,6 +92,13 @@ export const ChatInputReact = React.forwardRef<HTMLTextAreaElement, ChatInputPro
 
     const inputWrapper = (
         <div className={CSS_CLASSES.inputWrapper}>
+            {vault && (
+                <FilePicker
+                    vault={vault}
+                    onFilesChange={setSelectedFiles}
+                    selectedFiles={selectedFiles}
+                />
+            )}
             <textarea
                 ref={textAreaRef}
                 className={CSS_CLASSES.textArea}
