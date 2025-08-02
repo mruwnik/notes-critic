@@ -3,7 +3,7 @@
 	"name": "Notes Critic",
 	"author": "mruwnik",
 	"description": "Automatically critique your notes with AI. Connect your own MCP servers to extend functionality.",
-	"version": "0.0.1",
+	"version": "0.0.2",
 	"minAppVersion": "0.15.0",
 	"authorUrl": "https://github.com/mruwnik",
 	"isDesktopOnly": false

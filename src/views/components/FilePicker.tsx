@@ -286,13 +286,12 @@ export const FilePicker: React.FC<FilePickerProps> = ({ vault, onFilesChange, se
                 </div>
                 {selectedFiles.map(file => {
                     const icon = file.isFolder ? '📁' : '📄';
-                    const tooltip = file.isFolder ? `Remove folder ${file.name}` : `Remove ${file.name}`;
                     return (
                         <div 
                             key={file.path} 
                             className={CSS_CLASSES.selectedFile}
                             onClick={() => removeFile(file.path)}
-                            title={tooltip}
+                            title={file.path}
                         >
                             <span>{icon}</span>
                             <span>{file.name}</span>

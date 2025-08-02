@@ -2,9 +2,16 @@
 
 Yet another AI integration plugin. I wanted something that will automatically criticize my notes after a certain amount of changes. I also wanted it to be a nice interface for my various MCP tools.
 
-![chat view](docs/chat.png)
+![chat view](docs/weather.png)
 
 ## Features
+
+### Choose files to attach
+
+This is a cheap knockoff of what Cursor offers:
+
+![with files](docs/with_files.png)
+![file chooser](docs/file_chooser.png)
 
 ### AI-Powered Note Analysis
 
@@ -39,6 +46,12 @@ Yet another AI integration plugin. I wanted something that will automatically cr
 - **Token Management**: Configure max tokens, history limits, and thinking budgets
 - **MCP Integration**: Support for Model Context Protocol for extended functionality
 - **Custom Prompts**: Fully customizable system and feedback prompts
+
+### Tokens tracking
+
+Check how many tokens are being used and how much it will cost you, e.g.:
+
+![Token usage](docs/token_usage.png)
 
 ## Getting Started
 
