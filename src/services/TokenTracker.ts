@@ -21,6 +21,7 @@ export interface SessionTokens {
 export class TokenTracker {
     private conversationTokens = new Map<string, ConversationTokens>();
     private sessionTokens: SessionTokens;
+    private listeners: Set<() => void> = new Set();
 
     constructor() {
         this.sessionTokens = {
@@ -60,6 +61,9 @@ export class TokenTracker {
         this.sessionTokens.totalOutputTokens += usage.outputTokens;
         this.sessionTokens.totalTokens += usage.totalTokens;
         this.sessionTokens.lastUpdateTime = now;
+
+        // Notify listeners of the update
+        this.notifyListeners();
     }
 
     getConversationTokens(conversationId: string): ConversationTokens | null {
@@ -128,5 +132,24 @@ export class TokenTracker {
             return '<$0.01';
         }
         return `$${cost.toFixed(cost < 1 ? 3 : 2)}`;
+    }
+
+    // Event system for real-time updates
+    addListener(callback: () => void): () => void {
+        this.listeners.add(callback);
+        // Return unsubscribe function
+        return () => {
+            this.listeners.delete(callback);
+        };
+    }
+
+    private notifyListeners(): void {
+        this.listeners.forEach(callback => {
+            try {
+                callback();
+            } catch (error) {
+                console.error('Error in token tracker listener:', error);
+            }
+        });
     }
 }

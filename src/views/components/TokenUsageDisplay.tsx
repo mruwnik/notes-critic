@@ -1,6 +1,6 @@
 import React, { useState, useCallback, useRef, useEffect } from 'react';
 import { TokenUsage } from 'types';
-import { TokenTracker, ConversationTokens, SessionTokens } from '../../services/TokenTracker';
+import { TokenTracker, ConversationTokens, SessionTokens } from 'services/TokenTracker';
 
 interface TokenUsageDisplayProps {
     tokenTracker: TokenTracker;
@@ -165,6 +165,16 @@ export const TokenUsageDisplay: React.FC<TokenUsageDisplayProps> = ({
     className = '' 
 }) => {
     const [showDetailed, setShowDetailed] = useState(false);
+    const [, forceUpdate] = useState({});
+
+    // Force component re-render when tokens are updated
+    useEffect(() => {
+        const unsubscribe = tokenTracker.addListener(() => {
+            forceUpdate({});
+        });
+
+        return unsubscribe;
+    }, [tokenTracker]);
 
     const sessionTokens = tokenTracker.getSessionTokens();
     const conversationTokens = currentConversationId ? 

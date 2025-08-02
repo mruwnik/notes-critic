@@ -269,4 +269,74 @@ describe('TokenTracker', () => {
       expect(() => tokenTracker.clearConversation('non-existent')).not.toThrow();
     });
   });
+
+  describe('event listeners', () => {
+    it('should notify listeners when tokens are added', () => {
+      const listener1 = jest.fn();
+      const listener2 = jest.fn();
+
+      const unsubscribe1 = tokenTracker.addListener(listener1);
+      const unsubscribe2 = tokenTracker.addListener(listener2);
+
+      // Add some usage
+      tokenTracker.addUsage('conv-1', {
+        inputTokens: 100,
+        outputTokens: 200,
+        totalTokens: 300
+      });
+
+      expect(listener1).toHaveBeenCalledTimes(1);
+      expect(listener2).toHaveBeenCalledTimes(1);
+
+      // Add more usage
+      tokenTracker.addUsage('conv-1', {
+        inputTokens: 50,
+        outputTokens: 100,
+        totalTokens: 150
+      });
+
+      expect(listener1).toHaveBeenCalledTimes(2);
+      expect(listener2).toHaveBeenCalledTimes(2);
+
+      // Unsubscribe one listener
+      unsubscribe1();
+
+      tokenTracker.addUsage('conv-2', {
+        inputTokens: 25,
+        outputTokens: 50,
+        totalTokens: 75
+      });
+
+      expect(listener1).toHaveBeenCalledTimes(2); // Should not be called again
+      expect(listener2).toHaveBeenCalledTimes(3); // Should be called
+
+      // Clean up
+      unsubscribe2();
+    });
+
+    it('should handle listener errors gracefully', () => {
+      const errorListener = jest.fn(() => {
+        throw new Error('Test error');
+      });
+      const normalListener = jest.fn();
+
+      // Mock console.error to suppress error output during test
+      const consoleSpy = jest.spyOn(console, 'error').mockImplementation();
+
+      tokenTracker.addListener(errorListener);
+      tokenTracker.addListener(normalListener);
+
+      tokenTracker.addUsage('conv-1', {
+        inputTokens: 100,
+        outputTokens: 200,
+        totalTokens: 300
+      });
+
+      expect(errorListener).toHaveBeenCalledTimes(1);
+      expect(normalListener).toHaveBeenCalledTimes(1);
+      expect(consoleSpy).toHaveBeenCalledWith('Error in token tracker listener:', expect.any(Error));
+
+      consoleSpy.mockRestore();
+    });
+  });
 });
