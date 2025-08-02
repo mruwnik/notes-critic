@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { ConversationTurn, NotesCriticSettings, UserInput, LLMFile } from 'types';
 import { Vault } from 'obsidian';
+import { loadLLMFileContent } from './FilePicker';
 import { FeedbackDisplayReact } from 'views/components/FeedbackDisplay';
 import { ChatInputReact } from 'views/components/ChatInput';
 import { ControlPanelReact } from 'views/components/ControlPanel';
@@ -123,11 +124,26 @@ export const ChatViewComponent: React.FC<ChatViewComponentProps> = ({
     }, [toHistory, saveHistory, setTitle, fullConversation, listHistory]);
     
     // Handle feedback messages from parent
-    const sendFeedbackMessage = useCallback(async (prompt: string, files?: any[], overrideSettings?: NotesCriticSettings) => {
+    const sendFeedbackMessage = useCallback(async (prompt: string, files?: LLMFile[], overrideSettings?: NotesCriticSettings) => {
         try {
+            // Lazy load file contents if files are provided
+            let loadedFiles: LLMFile[] = [];
+            if (files && vault) {
+                for (const file of files) {
+                    const loaded = await loadLLMFileContent(vault, file);
+                    loadedFiles.push(...loaded);
+                }
+                
+                // Remove duplicates based on path
+                const uniqueFiles = loadedFiles.filter((file, index, self) => 
+                    index === self.findIndex(f => f.path === file.path)
+                );
+                loadedFiles = uniqueFiles;
+            }
+            
             await newConversationRound({
                 prompt,
-                files,
+                files: loadedFiles.length > 0 ? loadedFiles : undefined,
                 overrideSettings,
                 callback: (chunk) => {
                     if (chunk.type === 'turn_complete' && chunk.turn) {
@@ -139,28 +155,43 @@ export const ChatViewComponent: React.FC<ChatViewComponentProps> = ({
         } catch (error) {
             console.error('Error sending feedback message:', error);
         }
-    }, [newConversationRound, onChunkReceived, handleTurnComplete]);
+    }, [newConversationRound, onChunkReceived, handleTurnComplete, vault]);
 
     // Handle file change feedback with structured diff display
     const sendFileFeedbackMessage = useCallback(async (
         filename: string, 
         diff: string, 
         prompt: string, 
-        files?: any[], 
+        files?: LLMFile[], 
         overrideSettings?: NotesCriticSettings
     ) => {
         try {
+            // Lazy load file contents if files are provided
+            let loadedFiles: LLMFile[] = [];
+            if (files && vault) {
+                for (const file of files) {
+                    const loaded = await loadLLMFileContent(vault, file);
+                    loadedFiles.push(...loaded);
+                }
+                
+                // Remove duplicates based on path
+                const uniqueFiles = loadedFiles.filter((file, index, self) => 
+                    index === self.findIndex(f => f.path === file.path)
+                );
+                loadedFiles = uniqueFiles;
+            }
+            
             const userInput: UserInput = {
                 type: 'file_change',
                 filename,
                 diff,
                 prompt,
-                files
+                files: loadedFiles.length > 0 ? loadedFiles : undefined
             };
 
             await newConversationRound({
                 prompt, // Still need prompt for LLM processing
-                files,
+                files: loadedFiles.length > 0 ? loadedFiles : undefined,
                 overrideSettings,
                 userInput, // Pass structured user input
                 callback: (chunk) => {
@@ -173,7 +204,7 @@ export const ChatViewComponent: React.FC<ChatViewComponentProps> = ({
         } catch (error) {
             console.error('Error sending file feedback message:', error);
         }
-    }, [newConversationRound, onChunkReceived, handleTurnComplete]);
+    }, [newConversationRound, onChunkReceived, handleTurnComplete, vault]);
 
     // Expose feedback message functions to parent
     useEffect(() => {
@@ -191,9 +222,24 @@ export const ChatViewComponent: React.FC<ChatViewComponentProps> = ({
 
     const handleSend = async (message: string, files?: LLMFile[]) => {
         try {
+            // Lazy load file contents before sending
+            let loadedFiles: LLMFile[] = [];
+            if (files && vault) {
+                for (const file of files) {
+                    const loaded = await loadLLMFileContent(vault, file);
+                    loadedFiles.push(...loaded);
+                }
+                
+                // Remove duplicates based on path
+                const uniqueFiles = loadedFiles.filter((file, index, self) => 
+                    index === self.findIndex(f => f.path === file.path)
+                );
+                loadedFiles = uniqueFiles;
+            }
+            
             await newConversationRound({
                 prompt: message,
-                files,
+                files: loadedFiles.length > 0 ? loadedFiles : undefined,
                 callback: (chunk) => {
                     if (chunk.type === 'turn_complete' && chunk.turn) {
                         handleTurnComplete(chunk.turn);

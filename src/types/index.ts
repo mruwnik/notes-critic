@@ -84,11 +84,12 @@ export interface MCPServerState {
 }
 
 export interface LLMFile {
-    type: 'text' | 'image' | 'pdf';
+    type: 'text' | 'image' | 'pdf' | 'folder';
     path: string;
-    content?: string;
+    content?: string; // Optional for lazy loading
     mimeType?: string;
     name?: string;
+    isFolder?: boolean; // True for folders
 }
 
 export interface LLMMessage {

@@ -97,6 +97,54 @@ const fuzzySearchFolders = (query: string, folders: TFolder[]): FileResult[] => 
     return fuzzySearchGeneric(query, folders, 'folder');
 };
 
+// Lazy loading utility function
+export const loadLLMFileContent = async (vault: Vault, llmFile: LLMFile): Promise<LLMFile[]> => {
+    if (llmFile.isFolder) {
+        // Load all markdown files in the folder
+        const folderFiles = vault.getMarkdownFiles().filter(file => 
+            file.path.startsWith(llmFile.path + '/')
+        );
+        
+        const loadedFiles: LLMFile[] = [];
+        for (const file of folderFiles) {
+            try {
+                const content = await vault.read(file);
+                loadedFiles.push({
+                    type: getFileType(file.extension),
+                    path: file.path,
+                    name: file.name,
+                    content: content,
+                    isFolder: false
+                });
+            } catch (error) {
+                console.error(`Error reading file ${file.path}:`, error);
+            }
+        }
+        return loadedFiles;
+    } else {
+        // Load single file content
+        if (llmFile.content) {
+            // Already loaded
+            return [llmFile];
+        }
+        
+        const file = vault.getAbstractFileByPath(llmFile.path);
+        if (file instanceof TFile) {
+            try {
+                const content = await vault.read(file);
+                return [{
+                    ...llmFile,
+                    content: content
+                }];
+            } catch (error) {
+                console.error(`Error reading file ${llmFile.path}:`, error);
+                return [];
+            }
+        }
+        return [];
+    }
+};
+
 export const FilePicker: React.FC<FilePickerProps> = ({ vault, onFilesChange, selectedFiles }) => {
     const [isOpen, setIsOpen] = useState(false);
     const [searchQuery, setSearchQuery] = useState('');
@@ -169,19 +217,22 @@ export const FilePicker: React.FC<FilePickerProps> = ({ vault, onFilesChange, se
         setAllFolders(folders);
     };
 
-    const loadFileAsLLMFile = async (file: TFile): Promise<LLMFile | null> => {
-        try {
-            const content = await vault.read(file);
-            return {
-                type: getFileType(file.extension),
-                path: file.path,
-                content: content,
-                name: file.name
-            };
-        } catch (error) {
-            console.error(`Error reading file ${file.path}:`, error);
-            return null;
-        }
+    const createLLMFileMetadata = (file: TFile): LLMFile => {
+        return {
+            type: getFileType(file.extension),
+            path: file.path,
+            name: file.name,
+            isFolder: false
+        };
+    };
+
+    const createLLMFolderMetadata = (folder: TFolder): LLMFile => {
+        return {
+            type: 'folder',
+            path: folder.path,
+            name: folder.name,
+            isFolder: true
+        };
     };
 
     const selectFile = async (itemPath: string) => {
@@ -197,37 +248,11 @@ export const FilePicker: React.FC<FilePickerProps> = ({ vault, onFilesChange, se
         const item = vault.getAbstractFileByPath(itemPath);
         
         if (item instanceof TFile) {
-            // Handle single file
-            const llmFile = await loadFileAsLLMFile(item);
-            if (llmFile) {
-                onFilesChange([...selectedFiles, llmFile]);
-                setSearchQuery('');
-            }
+            const llmFile = createLLMFileMetadata(item);
+            onFilesChange([...selectedFiles, llmFile]);
         } else if (item instanceof TFolder) {
-            // Handle folder - add all markdown files in folder
-            try {
-                const folderFiles = vault.getMarkdownFiles().filter(file => 
-                    file.path.startsWith(item.path + '/')
-                );
-                
-                const newFiles: LLMFile[] = [];
-                for (const file of folderFiles) {
-                    // Skip if already selected
-                    if (selectedFiles.some(f => f.path === file.path)) continue;
-                    
-                    const llmFile = await loadFileAsLLMFile(file);
-                    if (llmFile) {
-                        newFiles.push(llmFile);
-                    }
-                }
-                
-                if (newFiles.length > 0) {
-                    onFilesChange([...selectedFiles, ...newFiles]);
-                    setSearchQuery('');
-                }
-            } catch (error) {
-                console.error('Error reading folder:', error);
-            }
+            const llmFolder = createLLMFolderMetadata(item);
+            onFilesChange([...selectedFiles, llmFolder]);
         }
     };
 
@@ -259,17 +284,21 @@ export const FilePicker: React.FC<FilePickerProps> = ({ vault, onFilesChange, se
                 >
                     {selectedFiles.length === 0 ? '@ Add content' : '@'}
                 </div>
-                {selectedFiles.map(file => (
-                    <div 
-                        key={file.path} 
-                        className={CSS_CLASSES.selectedFile}
-                        onClick={() => removeFile(file.path)}
-                        title={`Remove ${file.name}`}
-                    >
-                        <span>📄</span>
-                        <span>{file.name}</span>
-                    </div>
-                ))}
+                {selectedFiles.map(file => {
+                    const icon = file.isFolder ? '📁' : '📄';
+                    const tooltip = file.isFolder ? `Remove folder ${file.name}` : `Remove ${file.name}`;
+                    return (
+                        <div 
+                            key={file.path} 
+                            className={CSS_CLASSES.selectedFile}
+                            onClick={() => removeFile(file.path)}
+                            title={tooltip}
+                        >
+                            <span>{icon}</span>
+                            <span>{file.name}</span>
+                        </div>
+                    );
+                })}
             </div>
             
             {isOpen && (
