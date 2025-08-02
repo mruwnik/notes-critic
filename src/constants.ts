@@ -65,4 +65,10 @@ export const AVAILABLE_MODELS = {
     'openai/o3-pro': makeModel({ name: 'O3 Pro', maxOutputTokens: 100000, inputCostPer1M: 20, outputCostPer1M: 80 }),
     'openai/o3-mini': makeModel({ name: 'O3 Mini', maxOutputTokens: 100000, inputCostPer1M: 1.1, outputCostPer1M: 4.4 }),
     'openai/o4-mini': makeModel({ name: 'O4 Mini', maxOutputTokens: 100000, inputCostPer1M: 1.1, outputCostPer1M: 4.4 }),
+
+    // Test models
+    'claude-3-5-haiku-20241022': makeModel({ name: 'Claude 3.5 Haiku (Test)', maxOutputTokens: 8192, thinking: false, inputCostPer1M: 0.25, outputCostPer1M: 1.25 }),
+    'claude-3-5-sonnet-20241022': makeModel({ name: 'Claude 3.5 Sonnet (Test)', maxOutputTokens: 8192, thinking: false, inputCostPer1M: 3, outputCostPer1M: 15 }),
+    'gpt-3.5-turbo': makeModel({ name: 'GPT-3.5 Turbo', maxOutputTokens: 4096, thinking: false, inputCostPer1M: 0.5, outputCostPer1M: 1.5 }),
+    'gpt-4o': makeModel({ name: 'GPT-4o (Test)', maxOutputTokens: 16384, thinking: false, inputCostPer1M: 5, outputCostPer1M: 15 }),
 };

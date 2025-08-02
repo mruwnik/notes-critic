@@ -12,11 +12,11 @@ const CSS_CLASSES = {
     userInputElement: 'nc-border nc-rounded-lg nc-p-4 nc-bg-secondary',
     userInputContent: 'nc-mt-1',
     aiResponseElement: 'nc-border nc-rounded-lg nc-p-4 nc-bg-primary-alt nc-relative',
-    responseContent: 'nc-whitespace-pre-wrap nc-text-base',
-    thinkingContent: 'nc-whitespace-pre-wrap nc-text-xs nc-text-muted nc-italic',
+    responseContent: 'nc-whitespace-pre-wrap nc-text-base nc-selectable',
+    thinkingContent: 'nc-whitespace-pre-wrap nc-text-xs nc-text-muted nc-italic nc-selectable',
     toolCallContent: 'nc-space-y-1 nc-text-xs nc-text-muted',
-    signatureContent: 'nc-text-xs nc-text-muted nc-italic',
-    blockContent: 'nc-whitespace-pre-wrap nc-text-base nc-bg-secondary nc-p-2 nc-rounded',
+    signatureContent: 'nc-text-xs nc-text-muted nc-italic nc-selectable',
+    blockContent: 'nc-whitespace-pre-wrap nc-text-base nc-bg-secondary nc-p-2 nc-rounded nc-selectable',
     timestamp: 'nc-text-sm nc-text-muted nc-font-medium nc-mb-2',
     rerunButton: 'nc-btn nc-btn--secondary nc-btn--xs nc-absolute nc-bottom-2 nc-right-2 nc-opacity-30 nc-hover:opacity-80',
 } as const;
@@ -158,12 +158,12 @@ const ChunkRenderer: React.FC<{
                     <div className={CSS_CLASSES.toolCallContent}>
                         <div>
                             <strong className="nc-text-normal">Input:</strong><br />
-                            <div className="nc-bg-primary nc-p-2 nc-rounded nc-text-xs nc-mt-1 nc-border nc-overflow-x-auto nc-whitespace-pre-wrap nc-break-words nc-max-w-full"><code>{formatJson(toolCall.input)}</code></div>
+                            <div className="nc-bg-primary nc-p-2 nc-rounded nc-text-xs nc-mt-1 nc-border nc-overflow-x-auto nc-whitespace-pre-wrap nc-break-words nc-max-w-full nc-selectable"><code>{formatJson(toolCall.input)}</code></div>
                         </div>
                         {chunk.toolCall.result && (
                             <div>
                                 <strong className="nc-text-normal">Result:</strong><br />
-                                <pre className="nc-bg-primary nc-p-2 nc-rounded nc-text-xs nc-font-mono nc-mt-1 nc-border nc-overflow-x-auto nc-whitespace-pre-wrap nc-break-words nc-max-w-full"><code>{formatJson(chunk.toolCall.result)}</code></pre>
+                                <pre className="nc-bg-primary nc-p-2 nc-rounded nc-text-xs nc-font-mono nc-mt-1 nc-border nc-overflow-x-auto nc-whitespace-pre-wrap nc-break-words nc-max-w-full nc-selectable"><code>{formatJson(chunk.toolCall.result)}</code></pre>
                             </div>
                         )}
                     </div>
@@ -260,7 +260,7 @@ const AIResponseElement: React.FC<{
             
             {turn.error && (
                 <div className={CSS_CLASSES.responseContent}>
-                    <span className="nc-text-danger">
+                    <span className="nc-text-danger nc-selectable">
                         Error: {turn.error}
                     </span>
                 </div>
