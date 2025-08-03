@@ -84,8 +84,7 @@ export interface UseConversationManagerReturn {
 }
 
 export function useConversationManager(): UseConversationManagerReturn {
-    const app = useApp();
-    const { settings } = useSettings();
+    const { settings, app, plugin } = useSettings();
     const [conversation, setConversation] = useState<ConversationTurn[]>([]);
     const [conversationId, setConversationId] = useState<string>(generateUUID());
     const [title, setTitle] = useState<string>('');
@@ -231,7 +230,6 @@ export function useConversationManager(): UseConversationManagerReturn {
                 // Handle token usage tracking
                 if (chunk.tokenUsage) {
                     // Get the plugin instance from app to access tokenTracker
-                    const plugin = (app as any).plugins?.plugins?.['notes-critic'];
                     if (plugin?.tokenTracker) {
                         plugin.tokenTracker.addUsage(conversationId, chunk.tokenUsage);
                     }

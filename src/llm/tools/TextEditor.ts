@@ -57,7 +57,7 @@ export class TextEditorTool {
                 default:
                     return {
                         success: false,
-                        error: `Unknown command: ${(command as any).command}`
+                        error: `Unknown command: ${(command as TextEditorCommand).command}`
                     };
             }
         } catch (error) {

@@ -1,17 +1,21 @@
 import React, { useState, useCallback, useContext, createContext, ReactNode, useEffect } from 'react';
 import { App, Plugin, Events } from 'obsidian';
 import { NotesCriticSettings } from 'types';
+import { TokenTracker } from 'services/TokenTracker';
+
+type AppPlugin = Plugin & { 
+    settings: NotesCriticSettings; 
+    saveSettings(): Promise<void>;
+    settingsEvents?: Events;
+    tokenTracker?: TokenTracker;
+};
 
 interface SettingsContextType {
     settings: NotesCriticSettings;
     updateSetting: <K extends keyof NotesCriticSettings>(key: K, value: NotesCriticSettings[K]) => Promise<void>;
     updateSettings: (updates: Partial<NotesCriticSettings>) => Promise<void>;
     app: App;
-    plugin: Plugin & { 
-        settings: NotesCriticSettings; 
-        saveSettings(): Promise<void>;
-        settingsEvents?: Events;
-    };
+    plugin: AppPlugin;
 }
 
 const SettingsContext = createContext<SettingsContextType | null>(null);
@@ -19,11 +23,7 @@ const SettingsContext = createContext<SettingsContextType | null>(null);
 interface SettingsProviderProps {
     children: ReactNode;
     app: App;
-    plugin: Plugin & { 
-        settings: NotesCriticSettings; 
-        saveSettings(): Promise<void>;
-        settingsEvents?: Events;
-    };
+    plugin: AppPlugin;
 }
 
 export const SettingsProvider: React.FC<SettingsProviderProps> = ({

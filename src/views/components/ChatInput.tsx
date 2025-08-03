@@ -6,7 +6,7 @@ import { FilePicker } from './FilePicker';
 const CSS_CLASSES = {
     inputContainer: 'nc-p-3 nc-border-t',
     inputWrapper: 'nc-relative nc-w-full',
-    textArea: 'nc-w-full nc-input nc-resize-none nc-min-h-10 nc-max-h-32 nc-pr-12',
+    textArea: 'nc-w-full nc-input nc-resize-none nc-pr-12',
     sendButton: 'nc-btn nc-btn--primary nc-btn--square nc-absolute nc-bottom-2 nc-right-2 nc-opacity-60 nc-hover\:opacity-80'
 };
 
@@ -47,8 +47,15 @@ export const ChatInputReact = React.forwardRef<HTMLTextAreaElement, ChatInputPro
 
     const autoResize = () => {
         if (textAreaRef.current) {
-            textAreaRef.current.style.height = 'auto';
-            textAreaRef.current.style.height = Math.max(textAreaRef.current.scrollHeight, 20) + 'px';
+            const textarea = textAreaRef.current;
+            
+            // Reset to 1 to get accurate scrollHeight measurement
+            textarea.rows = 1;
+            
+            const style = window.getComputedStyle(textarea);
+            const lineHeight = parseInt(style.lineHeight) || parseInt(style.fontSize)
+            const contentHeight = textarea.scrollHeight;
+            textarea.rows = Math.max(1, Math.round(contentHeight / lineHeight) - 1);
         }
     };
 

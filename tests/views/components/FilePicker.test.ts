@@ -5,35 +5,52 @@ import { LLMFile } from '../../../src/types';
 // Mock Obsidian module
 jest.mock('obsidian', () => ({
     TFile: class TFile {
-        constructor(public path?: string, public name?: string, public extension?: string) {}
+        constructor(public path?: string, public name?: string, public extension?: string) { }
     },
     TFolder: class TFolder {
-        constructor(public path?: string, public name?: string) {}
+        constructor(public path?: string, public name?: string) { }
     },
-    Vault: class Vault {}
+    Vault: class Vault { }
 }));
 
 const { TFile, TFolder, Vault } = require('obsidian');
 
 // Mock implementations
 class MockTFile extends TFile {
-    constructor(public path: string, public name: string, public extension: string) {
+    constructor(public path: string, public name: string, public extension: string, public vault: MockVault, public parent: MockTFolder, public stat: { mtime: number, ctime: number, size: number }, public basename: string) {
         super();
         this.path = path;
         this.name = name;
         this.extension = extension;
     }
-}
 
-class MockTFolder extends TFolder {
-    constructor(public path: string, public name: string) {
-        super();
-        this.path = path;
-        this.name = name;
+    public static create(path: string, name: string, extension: string = 'md') {
+        const vault = new MockVault();
+        const parent = MockTFolder.create(path.split('/').slice(0, -1).join('/'), path.split('/').slice(0, -1).join('/'));
+        return new MockTFile(path, name, extension, vault, parent, { mtime: 0, ctime: 0, size: 0 }, name);
     }
 }
 
-class MockVault {
+class MockTFolder extends TFolder {
+    constructor(public path: string, public name: string, public vault: MockVault, public parent: MockTFolder, public stat: { mtime: number, ctime: number, size: number }, public basename: string) {
+        super();
+        this.path = path;
+        this.name = name;
+        this.basename = name;
+        this.vault = vault;
+        this.parent = parent;
+        this.stat = { mtime: 0, ctime: 0, size: 0 };
+        this.basename = name;
+    }
+
+    public static create(path: string, name: string) {
+        const vault = new MockVault();
+        const parent = MockTFolder.create(path.split('/').slice(0, -1).join('/'), path.split('/').slice(0, -1).join('/'));
+        return new MockTFolder(path, name, vault, parent, { mtime: 0, ctime: 0, size: 0 }, name);
+    }
+}
+
+class MockVault extends Vault {
     private files: MockTFile[] = [];
     private folders: MockTFolder[] = [];
     private fileContents: Map<string, string> = new Map();
@@ -51,24 +68,24 @@ class MockVault {
     }
 
     getMarkdownFiles() {
-        return this.files.filter(f => f.extension === 'md') as unknown as TFile[];
+        return this.files.filter(f => f.extension === 'md');
     }
 
     getAllLoadedFiles() {
-        return [...this.files, ...this.folders] as unknown as (TFile | TFolder)[];
+        return [...this.files, ...this.folders];
     }
 
     getAbstractFileByPath(path: string) {
         const file = this.files.find(f => f.path === path);
-        if (file) return file as unknown as TFile;
-        
+        if (file) return file;
+
         const folder = this.folders.find(f => f.path === path);
-        if (folder) return folder as unknown as TFolder;
-        
+        if (folder) return folder;
+
         return null;
     }
 
-    async read(file: TFile) {
+    async read(file: typeof TFile) {
         const content = this.fileContents.get(file.path);
         if (content === undefined) {
             throw new Error(`File not found: ${file.path}`);
@@ -107,11 +124,11 @@ describe('FilePicker Pure Functions', () => {
 
     describe('fuzzySearchGeneric', () => {
         const mockFiles = [
-            new MockTFile('notes/test.md', 'test.md', 'md'),
-            new MockTFile('projects/project1.md', 'project1.md', 'md'),
-            new MockTFile('ideas/brilliant-idea.md', 'brilliant-idea.md', 'md'),
-            new MockTFile('archive/old-notes.md', 'old-notes.md', 'md')
-        ] as unknown as TFile[];
+            MockTFile.create('notes/test.md', 'test.md'),
+            MockTFile.create('projects/project1.md', 'project1.md'),
+            MockTFile.create('ideas/brilliant-idea.md', 'brilliant-idea.md'),
+            MockTFile.create('archive/old-notes.md', 'old-notes.md')
+        ];
 
         it('should return empty array for empty query', () => {
             const results = fuzzySearchGeneric('', mockFiles, 'file');
@@ -142,15 +159,15 @@ describe('FilePicker Pure Functions', () => {
             expect(results.length).toBeGreaterThan(0);
             // Results should be sorted by score (higher first)
             for (let i = 1; i < results.length; i++) {
-                expect(results[i-1].score).toBeGreaterThanOrEqual(results[i].score);
+                expect(results[i - 1].score).toBeGreaterThanOrEqual(results[i].score);
             }
         });
 
         it('should limit results to 8 items', () => {
-            const manyFiles = Array.from({ length: 20 }, (_, i) => 
-                new MockTFile(`file${i}.md`, `file${i}.md`, 'md')
-            ) as unknown as TFile[];
-            
+            const manyFiles = Array.from({ length: 20 }, (_, i) =>
+                MockTFile.create(`file${i}.md`, `file${i}.md`)
+            );
+
             const results = fuzzySearchGeneric('file', manyFiles, 'file');
             expect(results.length).toBeLessThanOrEqual(8);
         });
@@ -166,7 +183,7 @@ describe('loadLLMFileContent', () => {
 
     describe('File Loading', () => {
         it('should load content for a single file', async () => {
-            const testFile = new MockTFile('test.md', 'test.md', 'md');
+            const testFile = MockTFile.create('test.md', 'test.md');
             mockVault.setFiles([testFile]);
             mockVault.setFileContent('test.md', '# Test Content');
 
@@ -177,8 +194,8 @@ describe('loadLLMFileContent', () => {
                 isFolder: false
             };
 
-            const results = await loadLLMFileContent(mockVault as unknown as Vault, llmFile);
-            
+            const results = await loadLLMFileContent(mockVault as unknown as typeof Vault, llmFile);
+
             expect(results).toHaveLength(1);
             expect(results[0].content).toBe('# Test Content');
             expect(results[0].path).toBe('test.md');
@@ -193,14 +210,14 @@ describe('loadLLMFileContent', () => {
                 isFolder: false
             };
 
-            const results = await loadLLMFileContent(mockVault as unknown as Vault, llmFile);
-            
+            const results = await loadLLMFileContent(mockVault as unknown as typeof Vault, llmFile);
+
             expect(results).toHaveLength(1);
             expect(results[0].content).toBe('# Already Loaded');
         });
 
         it('should handle file read errors gracefully', async () => {
-            const testFile = new MockTFile('missing.md', 'missing.md', 'md');
+            const testFile = MockTFile.create('missing.md', 'missing.md');
             mockVault.setFiles([testFile]);
             // Don't set content, so read will fail
 
@@ -211,7 +228,7 @@ describe('loadLLMFileContent', () => {
                 isFolder: false
             };
 
-            const results = await loadLLMFileContent(mockVault as unknown as Vault, llmFile);
+            const results = await loadLLMFileContent(mockVault as unknown as typeof Vault, llmFile);
             expect(results).toHaveLength(0);
         });
     });
@@ -219,12 +236,12 @@ describe('loadLLMFileContent', () => {
     describe('Folder Loading', () => {
         beforeEach(() => {
             const files = [
-                new MockTFile('folder/file1.md', 'file1.md', 'md'),
-                new MockTFile('folder/file2.md', 'file2.md', 'md'),
-                new MockTFile('folder/subfolder/file3.md', 'file3.md', 'md'),
-                new MockTFile('other/file4.md', 'file4.md', 'md')
+                MockTFile.create('folder/file1.md', 'file1.md'),
+                MockTFile.create('folder/file2.md', 'file2.md'),
+                MockTFile.create('folder/subfolder/file3.md', 'file3.md'),
+                MockTFile.create('other/file4.md', 'file4.md')
             ];
-            
+
             mockVault.setFiles(files);
             mockVault.setFileContent('folder/file1.md', '# File 1');
             mockVault.setFileContent('folder/file2.md', '# File 2');
@@ -240,14 +257,14 @@ describe('loadLLMFileContent', () => {
                 isFolder: true
             };
 
-            const results = await loadLLMFileContent(mockVault as unknown as Vault, llmFolder);
-            
+            const results = await loadLLMFileContent(mockVault as unknown as typeof Vault, llmFolder);
+
             expect(results).toHaveLength(3); // folder/file1.md, folder/file2.md, folder/subfolder/file3.md
-            
+
             const paths = results.map(f => f.path).sort();
             expect(paths).toEqual([
                 'folder/file1.md',
-                'folder/file2.md', 
+                'folder/file2.md',
                 'folder/subfolder/file3.md'
             ]);
         });
@@ -260,11 +277,11 @@ describe('loadLLMFileContent', () => {
                 isFolder: true
             };
 
-            const results = await loadLLMFileContent(mockVault as unknown as Vault, llmFolder);
-            
+            const results = await loadLLMFileContent(mockVault as unknown as typeof Vault, llmFolder);
+
             const file1 = results.find(f => f.path === 'folder/file1.md');
             expect(file1?.content).toBe('# File 1');
-            
+
             const file2 = results.find(f => f.path === 'folder/file2.md');
             expect(file2?.content).toBe('# File 2');
         });
@@ -277,8 +294,8 @@ describe('loadLLMFileContent', () => {
                 isFolder: true
             };
 
-            const results = await loadLLMFileContent(mockVault as unknown as Vault, llmFolder);
-            
+            const results = await loadLLMFileContent(mockVault as unknown as typeof Vault, llmFolder);
+
             results.forEach(file => {
                 expect(file.isFolder).toBe(false);
             });
@@ -292,7 +309,7 @@ describe('loadLLMFileContent', () => {
                 isFolder: true
             };
 
-            const results = await loadLLMFileContent(mockVault as unknown as Vault, llmFolder);
+            const results = await loadLLMFileContent(mockVault as unknown as typeof Vault, llmFolder);
             expect(results).toHaveLength(0);
         });
 
@@ -308,8 +325,8 @@ describe('loadLLMFileContent', () => {
                 isFolder: true
             };
 
-            const results = await loadLLMFileContent(mockVault as unknown as Vault, llmFolder);
-            
+            const results = await loadLLMFileContent(mockVault as unknown as typeof Vault, llmFolder);
+
             // Should still get the files that loaded successfully
             expect(results.length).toBeGreaterThan(0);
             expect(results.some(f => f.path === 'folder/file1.md')).toBe(true);
@@ -320,10 +337,10 @@ describe('loadLLMFileContent', () => {
 describe('FilePicker Edge Cases', () => {
     it('should handle files with special characters in names', () => {
         const specialFiles = [
-            new MockTFile('special/file-name.md', 'file-name.md', 'md'),
-            new MockTFile('special/file_with_underscores.md', 'file_with_underscores.md', 'md'),
-            new MockTFile('special/file (with) parens.md', 'file (with) parens.md', 'md')
-        ] as unknown as TFile[];
+            MockTFile.create('special/file-name.md', 'file-name.md'),
+            MockTFile.create('special/file_with_underscores.md', 'file_with_underscores.md'),
+            MockTFile.create('special/file (with) parens.md', 'file (with) parens.md')
+        ];
 
         const results = fuzzySearchGeneric('file', specialFiles, 'file');
         expect(results.length).toBe(3);
@@ -331,8 +348,8 @@ describe('FilePicker Edge Cases', () => {
 
     it('should handle paths with multiple slashes', () => {
         const files = [
-            new MockTFile('deep/nested/folder/file.md', 'file.md', 'md')
-        ] as unknown as TFile[];
+            MockTFile.create('deep/nested/folder/file.md', 'file.md')
+        ];
 
         const results = fuzzySearchGeneric('nested', files, 'file');
         expect(results).toHaveLength(1);

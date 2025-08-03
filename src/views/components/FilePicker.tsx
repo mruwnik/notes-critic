@@ -145,6 +145,14 @@ export const loadLLMFileContent = async (vault: Vault, llmFile: LLMFile): Promis
     }
 };
 
+const getFiles = (vault: Vault): TFile[] => {
+    return vault.getMarkdownFiles();
+};
+const getFolders = (vault: Vault): TFolder[] => {
+    const folders = vault.getAllLoadedFiles().filter((f): f is TFolder => f instanceof TFolder);
+    return folders.filter(f => !['', '/'].includes(f.path));
+};
+
 export const FilePicker: React.FC<FilePickerProps> = ({ vault, onFilesChange, selectedFiles }) => {
     const [isOpen, setIsOpen] = useState(false);
     const [searchQuery, setSearchQuery] = useState('');
@@ -208,13 +216,8 @@ export const FilePicker: React.FC<FilePickerProps> = ({ vault, onFilesChange, se
     }, [searchQuery, allFiles, allFolders]);
 
     const loadAllFiles = () => {
-        const files = vault.getMarkdownFiles();
-        setAllFiles(files);
-        
-        // Get all folders, excluding .obsidian and root folder
-        const folders = vault.getAllLoadedFiles()
-            .filter(f => f instanceof TFolder && !f.path.startsWith('.obsidian') && !['', '/'].includes(f.path)) as TFolder[];
-        setAllFolders(folders);
+        setAllFiles(getFiles(vault));
+        setAllFolders(getFolders(vault));
     };
 
     const createLLMFileMetadata = (file: TFile): LLMFile => {

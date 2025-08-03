@@ -118,7 +118,10 @@ export abstract class BaseLLMProvider {
             model: `${this.getProviderName().toLowerCase()}/${this.getDefaultTestModel()}`,
             maxTokens: 5
         };
-        (settings as any)[this.getApiKeyField()] = apiKey;
+        if (settings) {
+            const apiKeyField = this.getApiKeyField();
+            (settings as Record<string, any>)[apiKeyField] = apiKey;
+        }
 
         return {
             settings,
@@ -329,10 +332,10 @@ export abstract class BaseLLMProvider {
                     readBinary: () => Promise.resolve(new ArrayBuffer(0)),
                     getFiles: () => []
                 }
-            } as any;
+            };
 
-            const tempProvider = new (this.constructor as any)(tempSettings, testApp);
-            const config = tempProvider.createConfig([{ userInput: { type: 'chat_message', prompt: 'Hi' }, steps: [] }], '', false, []);
+            const tempProvider = new (this.constructor as new (settings: NotesCriticSettings, app: App) => BaseLLMProvider)(tempSettings, testApp as App);
+            const config = tempProvider.createConfig([{ id: '1', timestamp: new Date(), userInput: { type: 'chat_message', message: 'Hi', prompt: 'Hi' }, steps: [], isComplete: false }], '', false, []);
 
             // Merge body with overrides and remove any unwanted fields
             const testBody = { ...config.body, ...bodyOverrides };

@@ -98,22 +98,22 @@ describe('FileManager', () => {
 
       expect(mockApp.vault.cachedRead).toHaveBeenCalledWith(mockFile);
       expect(noteSnapshots.has('test.md')).toBe(true);
-      
+
       const snapshot = noteSnapshots.get('test.md');
       expect(snapshot).toEqual({
         baseline: content,
         current: content,
         changeCount: 0
       });
-      
+
       expect(onFileChangeMock).toHaveBeenCalledWith(mockFile);
     });
 
     it('should handle read errors gracefully', async () => {
       const error = new Error('File read error');
       mockApp.vault.cachedRead.mockRejectedValue(error);
-      
-      const consoleSpy = jest.spyOn(console, 'error').mockImplementation(() => {});
+
+      const consoleSpy = jest.spyOn(console, 'error').mockImplementation(() => { });
 
       await fileManager.initializeFileSnapshot(mockFile);
 
@@ -121,7 +121,7 @@ describe('FileManager', () => {
       const { Notice } = require('obsidian');
       expect(Notice).toHaveBeenCalledWith('Error reading file content');
       expect(noteSnapshots.has('test.md')).toBe(false);
-      
+
       consoleSpy.mockRestore();
     });
   });
@@ -143,7 +143,7 @@ describe('FileManager', () => {
       const paragraphDiff = await fileManager.updateFileSnapshot(mockFile);
 
       expect(paragraphDiff).toBe(2); // 4 paragraphs - 2 paragraphs = 2 difference
-      
+
       const snapshot = noteSnapshots.get('test.md');
       expect(snapshot?.current).toBe(newContent);
       expect(snapshot?.changeCount).toBe(7); // 5 + 2
@@ -156,7 +156,7 @@ describe('FileManager', () => {
       const paragraphDiff = await fileManager.updateFileSnapshot(mockFile);
 
       expect(paragraphDiff).toBe(0); // 2 paragraphs - 2 paragraphs = 0 difference
-      
+
       const snapshot = noteSnapshots.get('test.md');
       expect(snapshot?.current).toBe(newContent);
       expect(snapshot?.changeCount).toBe(5); // 5 + 0
@@ -164,7 +164,7 @@ describe('FileManager', () => {
 
     it('should return 0 when snapshot does not exist', async () => {
       const nonExistentFile = { path: 'nonexistent.md', name: 'nonexistent.md' };
-      
+
       const paragraphDiff = await fileManager.updateFileSnapshot(nonExistentFile);
 
       expect(paragraphDiff).toBe(0);
@@ -173,14 +173,14 @@ describe('FileManager', () => {
     it('should handle read errors gracefully', async () => {
       const error = new Error('File read error');
       mockApp.vault.cachedRead.mockRejectedValue(error);
-      
-      const consoleSpy = jest.spyOn(console, 'error').mockImplementation(() => {});
+
+      const consoleSpy = jest.spyOn(console, 'error').mockImplementation(() => { });
 
       const paragraphDiff = await fileManager.updateFileSnapshot(mockFile);
 
       expect(paragraphDiff).toBe(0);
       expect(consoleSpy).toHaveBeenCalledWith('Error processing file modification:', error);
-      
+
       consoleSpy.mockRestore();
     });
   });
