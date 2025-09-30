@@ -46,8 +46,10 @@ const makeModel = ({ name, thinking, maxOutputTokens, inputCostPer1M, outputCost
 });
 // Model choices that match the settings tab
 export const AVAILABLE_MODELS = {
-    'anthropic/claude-opus-4-20250514': makeModel({ name: 'Claude Opus 4', maxOutputTokens: 32000, inputCostPer1M: 15, outputCostPer1M: 75 }),
-    'anthropic/claude-sonnet-4-20250514': makeModel({ name: 'Claude Sonnet 4', maxOutputTokens: 64000, inputCostPer1M: 3, outputCostPer1M: 15 }),
+    'anthropic/claude-opus-4-1': makeModel({ name: 'Claude Opus 4.1', maxOutputTokens: 32000, inputCostPer1M: 15, outputCostPer1M: 75 }),
+    'anthropic/claude-opus-4-0': makeModel({ name: 'Claude Opus 4', maxOutputTokens: 32000, inputCostPer1M: 15, outputCostPer1M: 75 }),
+    'anthropic/claude-sonnet-4-5': makeModel({ name: 'Claude Sonnet 4.5', maxOutputTokens: 64000, inputCostPer1M: 3, outputCostPer1M: 15 }),
+    'anthropic/claude-sonnet-4-0': makeModel({ name: 'Claude Sonnet 4', maxOutputTokens: 64000, inputCostPer1M: 3, outputCostPer1M: 15 }),
     'anthropic/claude-3-5-sonnet-latest': makeModel({ name: 'Claude 3.5 Sonnet', maxOutputTokens: 8192, thinking: false, inputCostPer1M: 3, outputCostPer1M: 15 }),
     'anthropic/claude-3-7-sonnet-latest': makeModel({ name: 'Claude 3.7 Sonnet', maxOutputTokens: 100000, inputCostPer1M: 3, outputCostPer1M: 15 }),
     'anthropic/claude-3-5-haiku-latest': makeModel({ name: 'Claude 3.5 Haiku', maxOutputTokens: 8192, thinking: false, inputCostPer1M: 0.8, outputCostPer1M: 4 }),
@@ -65,6 +67,11 @@ export const AVAILABLE_MODELS = {
     'openai/o3-pro': makeModel({ name: 'O3 Pro', maxOutputTokens: 100000, inputCostPer1M: 20, outputCostPer1M: 80 }),
     'openai/o3-mini': makeModel({ name: 'O3 Mini', maxOutputTokens: 100000, inputCostPer1M: 1.1, outputCostPer1M: 4.4 }),
     'openai/o4-mini': makeModel({ name: 'O4 Mini', maxOutputTokens: 100000, inputCostPer1M: 1.1, outputCostPer1M: 4.4 }),
+
+    // GPT-5 series
+    'openai/gpt-5': makeModel({ name: 'GPT-5', maxOutputTokens: 128000, inputCostPer1M: 1.25, outputCostPer1M: 10 }),
+    'openai/gpt-5-mini': makeModel({ name: 'GPT-5 Mini', maxOutputTokens: 128000, inputCostPer1M: 0.25, outputCostPer1M: 2 }),
+    'openai/gpt-5-nano': makeModel({ name: 'GPT-5 Nano', maxOutputTokens: 128000, inputCostPer1M: 0.05, outputCostPer1M: 0.4 }),
 
     // Test models
     'claude-3-5-haiku-20241022': makeModel({ name: 'Claude 3.5 Haiku (Test)', maxOutputTokens: 8192, thinking: false, inputCostPer1M: 0.25, outputCostPer1M: 1.25 }),
