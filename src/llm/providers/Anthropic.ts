@@ -65,14 +65,14 @@ const getTextEditorTool = (model: string) => {
     return [textEditorTools["20250728"]]
 }
 
+const CLAUDE_4 = [
+    'claude-sonnet-4-0',
+    'claude-sonnet-4-5',
+    'claude-opus-4-0',
+    'claude-opus-4-1'
+]
 const getMemoryTool = (model: string) => {
-    const supported = [
-        'claude-sonnet-4-0',
-        'claude-sonnet-4-5',
-        'claude-opus-4-0',
-        'claude-opus-4-1'
-    ]
-    if (supported.includes(model)) {
+    if (CLAUDE_4.includes(model)) {
         return [memoryTools["20250818"]]
     }
     return []
@@ -134,6 +134,13 @@ export class AnthropicProvider extends BaseLLMProvider {
             extras.thinking = {
                 type: 'enabled',
                 budget_tokens: this.settings.thinkingBudgetTokens
+            }
+        }
+        if (CLAUDE_4.includes(this.getModel())) {
+            extras.context_management = {
+                edits: [
+                    { type: "clear_tool_uses_20250919" }
+                ]
             }
         }
 

@@ -316,11 +316,12 @@ describe('fileOperations', () => {
 
         it('should create parent directories if needed', async () => {
             mockVault.getAbstractFileByPath.mockReturnValue(null);
+            mockAdapter.exists.mockResolvedValue(false);
 
             const result = await createFile(mockApp, 'dir1/dir2/new.md', 'Content');
 
             expect(result.success).toBe(true);
-            expect(mockVault.createFolder).toHaveBeenCalled();
+            expect(mockAdapter.mkdir).toHaveBeenCalled();
             expect(mockVault.create).toHaveBeenCalledWith('dir1/dir2/new.md', 'Content');
         });
 
