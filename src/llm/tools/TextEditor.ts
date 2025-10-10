@@ -1,5 +1,6 @@
-import { App, TFile, TFolder, TAbstractFile } from 'obsidian';
+import { App, TFile } from 'obsidian';
 import { ToolDefinition } from 'types';
+import * as fileOps from './fileOperations';
 
 export interface TextEditorToolResult {
     success: boolean;
@@ -17,7 +18,7 @@ export interface StrReplaceCommand {
     command: 'str_replace';
     path: string;
     old_str: string;
-    new_str: string;
+    new_str?: string; // Optional - omitting deletes the matched text
 }
 
 export interface CreateCommand {
@@ -29,8 +30,8 @@ export interface CreateCommand {
 export interface InsertCommand {
     command: 'insert';
     path: string;
-    new_str: string;
-    insert_line: number; // 1-indexed
+    insert_text: string;
+    insert_line: number; // 0-indexed: 0=beginning, N=after line N, file_length=end
 }
 
 export type TextEditorCommand = ViewCommand | StrReplaceCommand | CreateCommand | InsertCommand;
@@ -38,26 +39,30 @@ export type TextEditorCommand = ViewCommand | StrReplaceCommand | CreateCommand 
 export class TextEditorTool {
     private app: App;
     private editHistory: Map<string, string[]> = new Map(); // For potential undo functionality
+    private maxCharacters?: number;
 
-    constructor(app: App) {
+    constructor(app: App, maxCharacters?: number) {
         this.app = app;
+        this.maxCharacters = maxCharacters;
     }
 
     async executeCommand(command: TextEditorCommand): Promise<TextEditorToolResult> {
         try {
+            const normalizedPath = 'path' in command ? this.normalizePath(command.path) : '';
+
             switch (command.command) {
                 case 'view':
-                    return await this.viewFile(command);
+                    return await fileOps.viewFile(this.app, normalizedPath, command.view_range, this.maxCharacters);
                 case 'str_replace':
-                    return await this.replaceText(command);
+                    return await this.replaceText(command, normalizedPath);
                 case 'create':
-                    return await this.createFile(command);
+                    return await this.createFile(command, normalizedPath);
                 case 'insert':
-                    return await this.insertText(command);
+                    return await this.insertText(command, normalizedPath);
                 default:
                     return {
                         success: false,
-                        error: `Unknown command: ${(command as TextEditorCommand).command}`
+                        error: `Unknown command: ${(command as any).command}`
                     };
             }
         } catch (error) {
@@ -68,184 +73,59 @@ export class TextEditorTool {
         }
     }
 
-    private async getFile(path: string): Promise<TFile | TFolder | null | TAbstractFile> {
-        const normalizedPath = path.replace(/^\/+/, '');
-        return this.app.vault.getAbstractFileByPath(normalizedPath || path);
+    private normalizePath(path: string): string {
+        return path.replace(/^\/+/, '');
     }
 
-    private async viewFile(command: ViewCommand): Promise<TextEditorToolResult> {
-        const { path, view_range } = command;
+    private async getFileAndSaveHistory(normalizedPath: string, originalPath: string): Promise<{ file: TFile; content: string } | TextEditorToolResult> {
+        const file = this.app.vault.getAbstractFileByPath(normalizedPath);
+
+        if (!(file instanceof TFile)) {
+            return {
+                success: false,
+                error: `File not found: ${originalPath}`
+            };
+        }
+
+        const content = await this.app.vault.read(file);
+        this.saveToHistory(normalizedPath, content);
+
+        return { file, content };
+    }
+
+    private async replaceText(command: StrReplaceCommand, normalizedPath: string): Promise<TextEditorToolResult> {
+        const { old_str, new_str = '' } = command;
 
         try {
-            // Check if path is a directory
-            const abstractFile = await this.getFile(path);
+            const result = await this.getFileAndSaveHistory(normalizedPath, command.path);
+            if ('success' in result) return result;
 
-            if (abstractFile instanceof TFolder) {
-                // List directory contents
-                const contents = abstractFile.children
-                    .map(child => {
-                        const type = child instanceof TFolder ? 'directory' : 'file';
-                        return `${type}: ${child.name}`;
-                    })
-                    .join('\n');
-
-                return {
-                    success: true,
-                    content: `Directory listing for ${path}:\n${contents}`
-                };
-            } else if (abstractFile instanceof TFile) {
-                // Read file content
-                const content = await this.app.vault.read(abstractFile);
-
-                if (view_range) {
-                    const lines = content.split('\n');
-                    const [startLine, endLine] = view_range;
-                    const selectedLines = lines.slice(startLine - 1, endLine);
-
-                    return {
-                        success: true,
-                        content: selectedLines.join('\n')
-                    };
-                } else {
-                    return {
-                        success: true,
-                        content: content
-                    };
-                }
-            } else {
-                return {
-                    success: false,
-                    error: `Path not found: ${path}`
-                };
-            }
+            return await fileOps.replaceText(this.app, normalizedPath, old_str, new_str);
         } catch (error) {
             return {
                 success: false,
-                error: `Failed to view ${path}: ${error.message}`
+                error: `Failed to replace text in ${command.path}: ${error.message}`
             };
         }
     }
 
-    private async replaceText(command: StrReplaceCommand): Promise<TextEditorToolResult> {
-        const { path, old_str, new_str } = command;
-
-        try {
-            const file = await this.getFile(path);
-
-            if (!(file instanceof TFile)) {
-                return {
-                    success: false,
-                    error: `File not found: ${path}`
-                };
-            }
-
-            const content = await this.app.vault.read(file);
-
-            // Check for matches
-            const matches = content.split(old_str).length - 1;
-
-            if (matches === 0) {
-                return {
-                    success: false,
-                    error: `No match found for replacement text. Please check your text and try again.`
-                };
-            }
-
-            if (matches > 1) {
-                return {
-                    success: false,
-                    error: `Found ${matches} matches for replacement text. Please provide more context to make a unique match.`
-                };
-            }
-
-            // Save to history for potential undo
-            this.saveToHistory(path, content);
-
-            // Perform replacement
-            const newContent = content.replace(old_str, new_str);
-            await this.app.vault.modify(file, newContent);
-
-            return {
-                success: true,
-                content: `Successfully replaced text in ${path}`
-            };
-        } catch (error) {
-            return {
-                success: false,
-                error: `Failed to replace text in ${path}: ${error.message}`
-            };
-        }
+    private async createFile(command: CreateCommand, normalizedPath: string): Promise<TextEditorToolResult> {
+        const { file_text = '' } = command;
+        return await fileOps.createFile(this.app, normalizedPath, file_text, false);
     }
 
-    private async createFile(command: CreateCommand): Promise<TextEditorToolResult> {
-        const { path, file_text = '' } = command;
+    private async insertText(command: InsertCommand, normalizedPath: string): Promise<TextEditorToolResult> {
+        const { insert_text, insert_line } = command;
 
         try {
-            // Check if file already exists
-            const existingFile = await this.getFile(path);
-            if (existingFile) {
-                return {
-                    success: false,
-                    error: `File already exists: ${path}`
-                };
-            }
+            const result = await this.getFileAndSaveHistory(normalizedPath, command.path);
+            if ('success' in result) return result;
 
-            // Create the file
-            const newFile = await this.app.vault.create(path, file_text);
-
-            return {
-                success: true,
-                content: `Successfully created file: ${path}`
-            };
+            return await fileOps.insertText(this.app, normalizedPath, insert_text, insert_line);
         } catch (error) {
             return {
                 success: false,
-                error: `Failed to create file ${path}: ${error.message}`
-            };
-        }
-    }
-
-    private async insertText(command: InsertCommand): Promise<TextEditorToolResult> {
-        const { path, new_str, insert_line } = command;
-
-        try {
-            const file = await this.getFile(path);
-
-            if (!(file instanceof TFile)) {
-                return {
-                    success: false,
-                    error: `File not found: ${path}`
-                };
-            }
-
-            const content = await this.app.vault.read(file);
-            const lines = content.split('\n');
-
-            // Validate line number
-            if (insert_line < 1 || insert_line > lines.length + 1) {
-                return {
-                    success: false,
-                    error: `Invalid line number ${insert_line}. File has ${lines.length} lines.`
-                };
-            }
-
-            // Save to history for potential undo
-            this.saveToHistory(path, content);
-
-            // Insert text at specified line
-            lines.splice(insert_line - 1, 0, new_str);
-            const newContent = lines.join('\n');
-
-            await this.app.vault.modify(file, newContent);
-
-            return {
-                success: true,
-                content: `Successfully inserted text at line ${insert_line} in ${path}`
-            };
-        } catch (error) {
-            return {
-                success: false,
-                error: `Failed to insert text in ${path}: ${error.message}`
+                error: `Failed to insert text in ${command.path}: ${error.message}`
             };
         }
     }
@@ -266,7 +146,8 @@ export class TextEditorTool {
     // Optional: Add undo functionality
     async undoLastEdit(path: string): Promise<TextEditorToolResult> {
         try {
-            const history = this.editHistory.get(path);
+            const normalizedPath = this.normalizePath(path);
+            const history = this.editHistory.get(normalizedPath);
             if (!history || history.length === 0) {
                 return {
                     success: false,
@@ -274,7 +155,7 @@ export class TextEditorTool {
                 };
             }
 
-            const file = await this.getFile(path);
+            const file = this.app.vault.getAbstractFileByPath(normalizedPath);
             if (!(file instanceof TFile)) {
                 return {
                     success: false,
@@ -300,7 +181,8 @@ export class TextEditorTool {
     // Helper method to get file stats
     async getFileStats(path: string): Promise<TextEditorToolResult> {
         try {
-            const file = await this.getFile(path);
+            const normalizedPath = this.normalizePath(path);
+            const file = this.app.vault.getAbstractFileByPath(normalizedPath);
 
             if (!(file instanceof TFile)) {
                 return {
@@ -361,41 +243,53 @@ export class TextEditorTool {
 // Tool definition for LLM integration
 export const textEditorToolDefinition: ToolDefinition = {
     name: 'str_replace_based_edit_tool',
-    description: 'A text editor tool that can view, create, and edit files.',
+    description: `Tool for viewing, creating and editing text files.
+
+The view command supports viewing directories (lists files/directories up to 2 levels), image files (.jpg, .jpeg, .png), and text files (displays numbered lines).
+
+The create command creates new text files with the content specified in file_text. It will fail if the file already exists.
+
+The str_replace command replaces text in a file. Requires an exact, unique match of old_str (whitespace sensitive). Will fail if old_str doesn't exist or appears multiple times. Omitting new_str deletes the matched text.
+
+The insert command inserts the text insert_text at line insert_line. 0 places text at the beginning of the file, N places text after line N, and using the total number of lines in the file places text at the end. insert_text must end with a newline character for the new text to appear on a separate line from any existing text that follows the insertion point.`,
     parameters: {
         type: 'object',
         properties: {
             command: {
                 type: 'string',
                 enum: ['view', 'str_replace', 'create', 'insert'],
-                description: 'The command to execute'
+                description: 'The command to execute: view, create, str_replace, or insert'
             },
             path: {
                 type: 'string',
-                description: 'The path to the file or directory'
+                description: 'Path to the file or directory (required for all commands)'
             },
             view_range: {
                 type: 'array',
                 items: { type: 'number' },
                 minItems: 2,
                 maxItems: 2,
-                description: 'Optional range of lines to view [start_line, end_line] (1-indexed)'
+                description: 'Optional range of lines to view [start_line, end_line] for view command'
             },
             old_str: {
                 type: 'string',
-                description: 'The text to replace (for str_replace command)'
+                description: 'The text to replace (required for str_replace command, must match exactly including whitespace)'
             },
             new_str: {
                 type: 'string',
-                description: 'The new text to insert or replace with'
+                description: 'The new text to replace with (optional for str_replace command - omit to delete matched text)'
             },
             file_text: {
                 type: 'string',
-                description: 'The content for new files (for create command)'
+                description: 'The content for new files (required for create command)'
             },
             insert_line: {
                 type: 'number',
-                description: 'The line number to insert text at (1-indexed, for insert command)'
+                description: 'The line number to insert at (required for insert command): 0=beginning, N=after line N, file_length=end'
+            },
+            insert_text: {
+                type: 'string',
+                description: 'The text to insert (required for insert command). Must end with newline for text to appear on separate line.'
             }
         },
         required: ['command', 'path']

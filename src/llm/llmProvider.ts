@@ -1,6 +1,6 @@
 import { LLMStreamChunk, NotesCriticSettings, ConversationTurn } from 'types';
 import { App } from 'obsidian';
-import { fetchPage, TextEditorTool, TextEditorCommand } from 'llm/tools';
+import { fetchPage, TextEditorTool, TextEditorCommand, MemoryTool, MemoryCommand } from 'llm/tools';
 import { BaseLLMProvider } from 'llm/providers/Base';
 import OpenAIProvider from 'llm/providers/OpenAI';
 import AnthropicProvider from 'llm/providers/Anthropic';
@@ -40,6 +40,9 @@ export class LLMProvider {
             case 'str_replace_based_edit_tool':
                 const textEditorTool = new TextEditorTool(this.app);
                 return textEditorTool.executeCommand(toolCall?.input as TextEditorCommand)
+            case 'memory':
+                const memoryTool = new MemoryTool(this.app, this.settings.memoryDirectory);
+                return memoryTool.executeCommand(toolCall?.input as MemoryCommand)
             case 'web_browser':
                 return fetchPage(toolCall?.input as string)
         }

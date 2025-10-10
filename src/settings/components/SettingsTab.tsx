@@ -1,5 +1,5 @@
-import React, { useState, useCallback } from 'react';
-import { App, Plugin } from 'obsidian'; 
+import React, { useState } from 'react';
+import { App } from 'obsidian'; 
 import { LLMProvider } from 'llm/llmProvider';
 import { ModelSelector } from 'views/components/ModelSelector';
 import { RulesSettings } from 'settings/components/RulesSettings';
@@ -327,6 +327,14 @@ export const SettingsTabReact: React.FC = () => {
                 placeholder=".notes-critic/conversations"
                 value={settings.logPath}
                 onChange={(value) => updateSetting('logPath', value)}
+            />
+
+            <TextSetting
+                name="Memory Directory"
+                desc="Path to the directory where AI memory files will be stored"
+                placeholder="memories"
+                value={settings.memoryDirectory}
+                onChange={(value) => updateSetting('memoryDirectory', value)}
             />
 
             {/* MCP Settings */}

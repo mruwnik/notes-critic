@@ -1,5 +1,5 @@
 import { BaseLLMProvider, ProviderConfig, StreamParseResult } from "llm/providers/Base";
-import { browserToolDefinition, textEditorToolDefinition } from "llm/tools";
+import { browserToolDefinition, textEditorToolDefinition, memoryToolDefinition } from "llm/tools";
 import { ConversationTurn } from "types";
 import { NotesCriticSettings } from "types";
 import { LLMFile } from "types";
@@ -11,8 +11,11 @@ export class OpenAIProvider extends BaseLLMProvider {
         const extras: any = {}
 
         // Add text editor tool
-        const baseTools = [{ ...browserToolDefinition, type: 'function' }, { ...textEditorToolDefinition, type: 'function' }]
-            .filter(tool => enabledTools.includes(tool.name));
+        const baseTools = [
+            { ...browserToolDefinition, type: 'function' },
+            { ...textEditorToolDefinition, type: 'function' },
+            { ...memoryToolDefinition, type: 'function' }
+        ].filter(tool => enabledTools.includes(tool.name));
         extras.tools = baseTools;
 
         if (enabledTools && enabledTools.length > 0) {

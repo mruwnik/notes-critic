@@ -26,6 +26,7 @@ Please provide constructive feedback focusing on the recent changes.`,
     mcpServerUrl: '',
     mcpMode: 'disabled' as const,
     logPath: '.notes-critic/conversations',
+    memoryDirectory: 'memories',
     enabledTools: []
 };
 

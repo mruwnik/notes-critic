@@ -1,6 +1,6 @@
 import { BaseLLMProvider, ProviderConfig, StreamParseResult } from "llm/providers/Base";
 import { ToolDefinition } from "types";
-import { browserToolDefinition } from "llm/tools";
+import { browserToolDefinition, memoryToolDefinition } from "llm/tools";
 import { MCPClient } from "llm/mcpClient";
 import { ConversationTurn } from "types";
 import { NotesCriticSettings } from "types";
@@ -14,41 +14,80 @@ const canThink = (model: string, thinkingBudgetTokens: number) => {
     return thinkingBudgetTokens > 1024 && getModel(model)?.thinking
 }
 
+const webSearchTools = {
+    "20250305": {
+        type: "web_search_20250305",
+        name: "web_search",
+        max_uses: 5
+    }
+}
+
+const textEditorTools = {
+    "20250429": {
+        type: "text_editor_20250429",
+        name: "str_replace_based_edit_tool"
+    },
+    "20250728": {
+        type: "text_editor_20250728",
+        name: "str_replace_based_edit_tool"
+    }
+}
+
+const memoryTools = {
+    "20250818": {
+        type: "memory_20250818",
+        name: "memory"
+    }
+}
+
+const getWebSearchTool = (model: string) => {
+    const no_search = [
+        'claude-3-5-sonnet-latest',
+        'claude-3-5-haiku-latest'
+    ]
+
+    if (no_search.includes(model)) {
+        return []
+    }
+    return [webSearchTools["20250305"]]
+}
+
+
+const getTextEditorTool = (model: string) => {
+    const no_editor = [
+        'claude-3-7-sonnet-latest',
+        'claude-3-5-sonnet-latest',
+        'claude-3-5-haiku-latest'
+    ]
+    if (no_editor.includes(model)) {
+        return []
+    }
+    return [textEditorTools["20250728"]]
+}
+
+const getMemoryTool = (model: string) => {
+    const supported = [
+        'claude-sonnet-4-0',
+        'claude-sonnet-4-5',
+        'claude-opus-4-0',
+        'claude-opus-4-1'
+    ]
+    if (supported.includes(model)) {
+        return [memoryTools["20250818"]]
+    }
+    return []
+}
+
 // Anthropic provider implementation
 export class AnthropicProvider extends BaseLLMProvider {
     protected getDefaultTools(model: string): Record<string, any>[] {
         const toTool = ({ name, description, parameters }: ToolDefinition) => ({ name, description, input_schema: parameters })
-
-        const baseTools = [toTool(browserToolDefinition)]
-
-        const no_search = [
-            'claude-3-5-sonnet-latest',
-            'claude-3-5-haiku-latest'
+        return [
+            ...getWebSearchTool(model),
+            ...getTextEditorTool(model),
+            ...getMemoryTool(model),
+            toTool(browserToolDefinition),
         ]
-        const no_editor = [
-            'claude-3-7-sonnet-latest',
-            'claude-3-5-sonnet-latest',
-            'claude-3-5-haiku-latest'
-        ]
-
-        const webSearchTool = {
-            type: "web_search_20250305",
-            name: "web_search",
-            max_uses: 5
-        }
-        const textEditorTool = {
-            type: "text_editor_20250429",
-            name: "str_replace_based_edit_tool"
-        }
-
-        if (no_search.includes(model)) {
-            return baseTools
-        }
-        if (no_editor.includes(model)) {
-            return [webSearchTool, ...baseTools]
-        }
-
-        return [webSearchTool, textEditorTool, ...baseTools]
     }
 
     protected supportsMCP(model: string): boolean {
@@ -105,7 +144,7 @@ export class AnthropicProvider extends BaseLLMProvider {
                 'Content-Type': 'application/json',
                 'x-api-key': this.getApiKey(),
                 'anthropic-version': '2023-06-01',
-                "anthropic-beta": "mcp-client-2025-04-04"
+                "anthropic-beta": "mcp-client-2025-04-04,context-management-2025-06-27"
             },
             body: {
                 model: this.getModel(),

@@ -24,14 +24,14 @@ jest.mock('obsidian', () => {
   };
 });
 
-import { 
-  TextEditorTool, 
-  TextEditorCommand, 
-  ViewCommand, 
-  StrReplaceCommand, 
-  CreateCommand, 
+import {
+  TextEditorTool,
+  TextEditorCommand,
+  ViewCommand,
+  StrReplaceCommand,
+  CreateCommand,
   InsertCommand,
-  textEditorToolDefinition 
+  textEditorToolDefinition
 } from '../../src/llm/tools';
 import { TFile, TFolder, TAbstractFile } from 'obsidian';
 
@@ -90,7 +90,7 @@ describe('TextEditorTool', () => {
   describe('executeCommand', () => {
     it('should route to correct command handler', async () => {
       const viewCommand: ViewCommand = { command: 'view', path: 'test.md' };
-      
+
       mockVault.getAbstractFileByPath.mockReturnValue(mockTFile);
       mockVault.read.mockResolvedValue('file content');
 
@@ -111,7 +111,7 @@ describe('TextEditorTool', () => {
 
     it('should handle command execution errors', async () => {
       const viewCommand: ViewCommand = { command: 'view', path: 'nonexistent.md' };
-      
+
       mockVault.getAbstractFileByPath.mockReturnValue(null);
 
       const result = await tool.executeCommand(viewCommand);
@@ -141,10 +141,10 @@ describe('TextEditorTool', () => {
       mockVault.getAbstractFileByPath.mockReturnValue(mockTFile);
       mockVault.read.mockResolvedValue(content);
 
-      const command: ViewCommand = { 
-        command: 'view', 
-        path: 'test.md', 
-        view_range: [2, 4] 
+      const command: ViewCommand = {
+        command: 'view',
+        path: 'test.md',
+        view_range: [2, 4]
       };
       const result = await tool.executeCommand(command);
 
@@ -157,10 +157,10 @@ describe('TextEditorTool', () => {
       mockVault.getAbstractFileByPath.mockReturnValue(mockTFile);
       mockVault.read.mockResolvedValue(content);
 
-      const command: ViewCommand = { 
-        command: 'view', 
-        path: 'test.md', 
-        view_range: [5, 10] 
+      const command: ViewCommand = {
+        command: 'view',
+        path: 'test.md',
+        view_range: [5, 10]
       };
       const result = await tool.executeCommand(command);
 
@@ -207,7 +207,7 @@ describe('TextEditorTool', () => {
       const result = await tool.executeCommand(command);
 
       expect(result.success).toBe(true);
-      expect(result.content).toContain('Directory listing for folder');
+      expect(result.content).toContain('Directory: folder');
     });
   });
 
@@ -216,7 +216,7 @@ describe('TextEditorTool', () => {
     it('should replace text successfully', async () => {
       const originalContent = 'line1\nold text\nline3';
       const expectedContent = 'line1\nnew text\nline3';
-      
+
       mockVault.getAbstractFileByPath.mockReturnValue(mockTFile);
       mockVault.read.mockResolvedValue(originalContent);
       mockVault.modify.mockResolvedValue(undefined);
@@ -236,7 +236,7 @@ describe('TextEditorTool', () => {
 
     it('should handle multiple occurrences of text with error', async () => {
       const originalContent = 'hello world\nhello everyone\nhello world';
-      
+
       mockVault.getAbstractFileByPath.mockReturnValue(mockTFile);
       mockVault.read.mockResolvedValue(originalContent);
 
@@ -255,7 +255,7 @@ describe('TextEditorTool', () => {
 
     it('should handle text not found', async () => {
       const originalContent = 'line1\nline2\nline3';
-      
+
       mockVault.getAbstractFileByPath.mockReturnValue(mockTFile);
       mockVault.read.mockResolvedValue(originalContent);
 
@@ -275,7 +275,7 @@ describe('TextEditorTool', () => {
     it('should handle multiline replacements', async () => {
       const originalContent = 'line1\nold line 2\nold line 3\nline4';
       const expectedContent = 'line1\nnew line 2\nnew line 3\nline4';
-      
+
       mockVault.getAbstractFileByPath.mockReturnValue(mockTFile);
       mockVault.read.mockResolvedValue(originalContent);
       mockVault.modify.mockResolvedValue(undefined);
@@ -296,7 +296,7 @@ describe('TextEditorTool', () => {
     it('should handle empty replacement', async () => {
       const originalContent = 'line1\nto remove\nline3';
       const expectedContent = 'line1\n\nline3';
-      
+
       mockVault.getAbstractFileByPath.mockReturnValue(mockTFile);
       mockVault.read.mockResolvedValue(originalContent);
       mockVault.modify.mockResolvedValue(undefined);
@@ -316,7 +316,7 @@ describe('TextEditorTool', () => {
 
     it('should handle modification errors', async () => {
       const originalContent = 'line1\nold text\nline3';
-      
+
       mockVault.getAbstractFileByPath.mockReturnValue(mockTFile);
       mockVault.read.mockResolvedValue(originalContent);
       mockVault.modify.mockRejectedValue(new Error('File is readonly'));
@@ -336,7 +336,7 @@ describe('TextEditorTool', () => {
 
     it('should store edit history', async () => {
       const originalContent = 'original content';
-      
+
       mockVault.getAbstractFileByPath.mockReturnValue(mockTFile);
       mockVault.read.mockResolvedValue(originalContent);
       mockVault.modify.mockResolvedValue(undefined);
@@ -441,7 +441,7 @@ describe('TextEditorTool', () => {
     it('should insert text at specified line', async () => {
       const originalContent = 'line1\nline2\nline3';
       const expectedContent = 'line1\ninserted line\nline2\nline3';
-      
+
       mockVault.getAbstractFileByPath.mockReturnValue(mockTFile);
       mockVault.read.mockResolvedValue(originalContent);
       mockVault.modify.mockResolvedValue(undefined);
@@ -449,8 +449,8 @@ describe('TextEditorTool', () => {
       const command: InsertCommand = {
         command: 'insert',
         path: 'test.md',
-        new_str: 'inserted line',
-        insert_line: 2
+        insert_text: 'inserted line',
+        insert_line: 1 // 0-indexed: insert at position 1 (between line1 and line2)
       };
 
       const result = await tool.executeCommand(command);
@@ -462,7 +462,7 @@ describe('TextEditorTool', () => {
     it('should insert at beginning of file', async () => {
       const originalContent = 'line1\nline2';
       const expectedContent = 'inserted line\nline1\nline2';
-      
+
       mockVault.getAbstractFileByPath.mockReturnValue(mockTFile);
       mockVault.read.mockResolvedValue(originalContent);
       mockVault.modify.mockResolvedValue(undefined);
@@ -470,8 +470,8 @@ describe('TextEditorTool', () => {
       const command: InsertCommand = {
         command: 'insert',
         path: 'test.md',
-        new_str: 'inserted line',
-        insert_line: 1
+        insert_text: 'inserted line',
+        insert_line: 0 // 0-indexed: insert at beginning
       };
 
       const result = await tool.executeCommand(command);
@@ -483,7 +483,7 @@ describe('TextEditorTool', () => {
     it('should insert at end of file', async () => {
       const originalContent = 'line1\nline2';
       const expectedContent = 'line1\nline2\ninserted line';
-      
+
       mockVault.getAbstractFileByPath.mockReturnValue(mockTFile);
       mockVault.read.mockResolvedValue(originalContent);
       mockVault.modify.mockResolvedValue(undefined);
@@ -491,8 +491,8 @@ describe('TextEditorTool', () => {
       const command: InsertCommand = {
         command: 'insert',
         path: 'test.md',
-        new_str: 'inserted line',
-        insert_line: 3
+        insert_text: 'inserted line',
+        insert_line: 2 // 0-indexed: insert after 2 lines (at end)
       };
 
       const result = await tool.executeCommand(command);
@@ -503,14 +503,14 @@ describe('TextEditorTool', () => {
 
     it('should handle invalid line numbers', async () => {
       const originalContent = 'line1\nline2';
-      
+
       mockVault.getAbstractFileByPath.mockReturnValue(mockTFile);
       mockVault.read.mockResolvedValue(originalContent);
 
       const command: InsertCommand = {
         command: 'insert',
         path: 'test.md',
-        new_str: 'inserted line',
+        insert_text: 'inserted line',
         insert_line: 10
       };
 
@@ -523,7 +523,7 @@ describe('TextEditorTool', () => {
     it('should insert multiple lines', async () => {
       const originalContent = 'line1\nline2';
       const expectedContent = 'line1\ninserted line 1\ninserted line 2\nline2';
-      
+
       mockVault.getAbstractFileByPath.mockReturnValue(mockTFile);
       mockVault.read.mockResolvedValue(originalContent);
       mockVault.modify.mockResolvedValue(undefined);
@@ -531,8 +531,8 @@ describe('TextEditorTool', () => {
       const command: InsertCommand = {
         command: 'insert',
         path: 'test.md',
-        new_str: 'inserted line 1\ninserted line 2',
-        insert_line: 2
+        insert_text: 'inserted line 1\ninserted line 2',
+        insert_line: 1 // 0-indexed: insert at position 1 (between line1 and line2)
       };
 
       const result = await tool.executeCommand(command);
@@ -544,7 +544,7 @@ describe('TextEditorTool', () => {
     it('should handle empty file insertion', async () => {
       const originalContent = '';
       const expectedContent = 'first line\n';
-      
+
       mockVault.getAbstractFileByPath.mockReturnValue(mockTFile);
       mockVault.read.mockResolvedValue(originalContent);
       mockVault.modify.mockResolvedValue(undefined);
@@ -552,8 +552,8 @@ describe('TextEditorTool', () => {
       const command: InsertCommand = {
         command: 'insert',
         path: 'test.md',
-        new_str: 'first line',
-        insert_line: 1
+        insert_text: 'first line',
+        insert_line: 0 // 0-indexed: insert at beginning of empty file
       };
 
       const result = await tool.executeCommand(command);
@@ -568,7 +568,7 @@ describe('TextEditorTool', () => {
       expect(textEditorToolDefinition).toHaveProperty('name');
       expect(textEditorToolDefinition).toHaveProperty('description');
       expect(textEditorToolDefinition).toHaveProperty('parameters');
-      
+
       expect(textEditorToolDefinition.name).toBe('str_replace_based_edit_tool');
       expect(textEditorToolDefinition.parameters).toHaveProperty('type', 'object');
       expect(textEditorToolDefinition.parameters).toHaveProperty('properties');
@@ -577,7 +577,7 @@ describe('TextEditorTool', () => {
 
     it('should define all command types in schema', () => {
       const properties = textEditorToolDefinition.parameters.properties;
-      
+
       expect(properties).toHaveProperty('command');
       expect(properties.command).toHaveProperty('enum');
       expect(properties.command.enum).toContain('view');
@@ -588,7 +588,7 @@ describe('TextEditorTool', () => {
 
     it('should have required fields defined', () => {
       const required = textEditorToolDefinition.parameters.required;
-      
+
       expect(required).toContain('command');
       expect(required).toContain('path');
     });
@@ -597,7 +597,7 @@ describe('TextEditorTool', () => {
   describe('error handling and edge cases', () => {
     it('should handle very large files', async () => {
       const largeContent = 'x'.repeat(1000000); // 1MB of text
-      
+
       mockVault.getAbstractFileByPath.mockReturnValue(mockTFile);
       mockVault.read.mockResolvedValue(largeContent);
 
@@ -610,7 +610,7 @@ describe('TextEditorTool', () => {
 
     it('should handle special characters in file paths', async () => {
       const specialPath = 'folder with spaces/file-with-dashes_and_underscores.md';
-      
+
       mockVault.getAbstractFileByPath.mockReturnValue(mockTFile);
       mockVault.read.mockResolvedValue('content');
 
@@ -623,7 +623,7 @@ describe('TextEditorTool', () => {
 
     it('should handle unicode content', async () => {
       const unicodeContent = '中文测试\n🚀 emoji test\n«special» characters';
-      
+
       mockVault.getAbstractFileByPath.mockReturnValue(mockTFile);
       mockVault.read.mockResolvedValue(unicodeContent);
       mockVault.modify.mockResolvedValue(undefined);
@@ -639,7 +639,7 @@ describe('TextEditorTool', () => {
 
       expect(result.success).toBe(true);
       expect(mockVault.modify).toHaveBeenCalledWith(
-        mockTFile, 
+        mockTFile,
         'Chinese test\n🚀 emoji test\n«special» characters'
       );
     });
@@ -648,11 +648,14 @@ describe('TextEditorTool', () => {
       const originalContent = 'original';
       const step1Content = 'step1';
       const step2Content = 'step2';
-      
+
       mockVault.getAbstractFileByPath.mockReturnValue(mockTFile);
+      // Each str_replace reads the file twice: once for history, once in fileOps.replaceText
       mockVault.read
-        .mockResolvedValueOnce(originalContent)
-        .mockResolvedValueOnce(step1Content);
+        .mockResolvedValueOnce(originalContent)  // First edit: history save
+        .mockResolvedValueOnce(originalContent)  // First edit: fileOps.replaceText
+        .mockResolvedValueOnce(step1Content)     // Second edit: history save
+        .mockResolvedValueOnce(step1Content);    // Second edit: fileOps.replaceText
       mockVault.modify.mockResolvedValue(undefined);
 
       // First edit
@@ -679,7 +682,7 @@ describe('TextEditorTool', () => {
 
     it('should handle concurrent operations gracefully', async () => {
       const content = 'line1\nline2\nline3';
-      
+
       mockVault.getAbstractFileByPath.mockReturnValue(mockTFile);
       mockVault.read.mockResolvedValue(content);
       mockVault.modify.mockResolvedValue(undefined);
