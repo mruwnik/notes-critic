@@ -47,6 +47,7 @@ const makeModel = ({ name, thinking, maxOutputTokens, inputCostPer1M, outputCost
 });
 // Model choices that match the settings tab
 export const AVAILABLE_MODELS = {
+    'anthropic/claude-haiku-4-5': makeModel({ name: 'Claude Haiku 4.5', maxOutputTokens: 32000, inputCostPer1M: 15, outputCostPer1M: 75, thinking: false }),
     'anthropic/claude-opus-4-1': makeModel({ name: 'Claude Opus 4.1', maxOutputTokens: 32000, inputCostPer1M: 15, outputCostPer1M: 75 }),
     'anthropic/claude-opus-4-0': makeModel({ name: 'Claude Opus 4', maxOutputTokens: 32000, inputCostPer1M: 15, outputCostPer1M: 75 }),
     'anthropic/claude-sonnet-4-5': makeModel({ name: 'Claude Sonnet 4.5', maxOutputTokens: 64000, inputCostPer1M: 3, outputCostPer1M: 15 }),
