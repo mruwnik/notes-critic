@@ -173,10 +173,9 @@ export abstract class BaseLLMProvider {
         // Add files if present
         if (message.userInput.files && message.userInput.files.length > 0) {
             for (const file of message.userInput.files) {
-                if (file.type === 'text') {
-                    content.push(this.formatText(file.content?.toString() || '', file.name));
-                } else if (file.type === 'image') {
-                    content.push(this.formatImage(file.content?.toString() || '', file.mimeType || 'image/png'));
+                const formatted = this.formatFile(file);
+                if (formatted) {
+                    content.push(formatted);
                 }
             }
         }

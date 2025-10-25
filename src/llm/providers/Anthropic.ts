@@ -139,6 +139,7 @@ export class AnthropicProvider extends BaseLLMProvider {
         this.validateApiKey();
         const formattedMessages = this.formatMessages(messages);
         const wrappedMessages = this.wrapMessages(formattedMessages);
+        console.log(wrappedMessages);
 
         const extras = this.getTools({}, enabledTools)
         if (thinking && canThink(this.getModel(), this.settings.thinkingBudgetTokens)) {
@@ -317,7 +318,7 @@ export class AnthropicProvider extends BaseLLMProvider {
                 };
             case 'image':
                 return {
-                    type: 'document',
+                    type: 'image',
                     source: {
                         type: 'base64',
                         media_type: file.mimeType || 'image/png',
@@ -330,7 +331,7 @@ export class AnthropicProvider extends BaseLLMProvider {
                     source: {
                         type: 'base64',
                         media_type: file.mimeType || 'application/pdf',
-                        data: file.content
+                        data: file.content ?? ''
                     }
                 };
             default:

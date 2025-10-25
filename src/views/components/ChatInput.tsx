@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef, KeyboardEvent } from 'react';
-import { Vault } from 'obsidian';
+import { Vault, TFile } from 'obsidian';
 import { LLMFile } from 'types';
-import { FilePicker } from './FilePicker';
+import { FilePicker, getFileType } from './FilePicker';
 
 const CSS_CLASSES = {
     inputContainer: 'nc-p-3 nc-border-t',
@@ -43,6 +43,7 @@ export const ChatInputReact = React.forwardRef<HTMLTextAreaElement, ChatInputPro
     useEffect(() => {
         autoResize();
         scrollToKeepInputVisible();
+        extractLinksAsFiles();
     }, [value]);
 
     const autoResize = () => {
@@ -94,6 +95,50 @@ export const ChatInputReact = React.forwardRef<HTMLTextAreaElement, ChatInputPro
             } catch (error) {
                 console.error('Send error:', error);
             }
+        }
+    };
+
+    const extractLinksAsFiles = () => {
+        if (!vault) return;
+
+        const resolveFile = (filePath: string): TFile | null => {
+            const file = vault.getAbstractFileByPath(filePath) || 
+                        vault.getAbstractFileByPath(filePath + '.md') ||
+                        vault.getAllLoadedFiles().find(f => 
+                            f instanceof TFile && (f.basename === filePath || f.path === filePath)
+                        );
+            return file instanceof TFile ? file : null;
+        };
+
+        const extractFromUri = (uri: string) => {
+            const match = uri.match(/[?&]file=([^&\s]+)/);
+            return match ? decodeURIComponent(match[1]) : null;
+        };
+
+        let newValue = value;
+        const patterns = [
+            { regex: /obsidian:\/\/open\?[^\s]+/g, extract: (m: RegExpMatchArray) => extractFromUri(m[0]) },
+            { regex: /\[\[([^\]]+)\]\]/g, extract: (m: RegExpMatchArray) => m[1] }
+        ];
+
+        const newFiles = patterns.flatMap(({ regex, extract }) =>
+            [...value.matchAll(regex)].flatMap(match => {
+                const filePath = extract(match);
+                const file = filePath && resolveFile(filePath);
+                if (file) {
+                    newValue = newValue.replace(match[0], '');
+                    return [{ type: getFileType(file.extension), path: file.path, name: file.name, isFolder: false } as LLMFile];
+                }
+                return [];
+            })
+        );
+
+        if (newFiles.length > 0) {
+            setValue(newValue.replace(/\n{3,}/g, '\n\n').trim());
+            setSelectedFiles(prev => {
+                const existing = new Set(prev.map(f => f.path));
+                return [...prev, ...newFiles.filter(f => !existing.has(f.path))];
+            });
         }
     };
 

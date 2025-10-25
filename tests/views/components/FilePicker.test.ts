@@ -181,11 +181,10 @@ describe('loadLLMFileContent', () => {
         mockVault = new MockVault();
     });
 
-    describe('File Loading', () => {
-        it('should load content for a single file', async () => {
+    describe('File Metadata Creation', () => {
+        it('should return file metadata without loading content', async () => {
             const testFile = MockTFile.create('test.md', 'test.md');
             mockVault.setFiles([testFile]);
-            mockVault.setFileContent('test.md', '# Test Content');
 
             const llmFile: LLMFile = {
                 type: 'text',
@@ -197,11 +196,11 @@ describe('loadLLMFileContent', () => {
             const results = await loadLLMFileContent(mockVault as unknown as typeof Vault, llmFile);
 
             expect(results).toHaveLength(1);
-            expect(results[0].content).toBe('# Test Content');
+            expect(results[0].content).toBeUndefined(); // Content not loaded - deferred to fileUtils
             expect(results[0].path).toBe('test.md');
         });
 
-        it('should return file as-is if content already loaded', async () => {
+        it('should return file as-is if passed', async () => {
             const llmFile: LLMFile = {
                 type: 'text',
                 path: 'test.md',
@@ -213,43 +212,48 @@ describe('loadLLMFileContent', () => {
             const results = await loadLLMFileContent(mockVault as unknown as typeof Vault, llmFile);
 
             expect(results).toHaveLength(1);
-            expect(results[0].content).toBe('# Already Loaded');
+            expect(results[0]).toBe(llmFile);
         });
 
-        it('should handle file read errors gracefully', async () => {
-            const testFile = MockTFile.create('missing.md', 'missing.md');
-            mockVault.setFiles([testFile]);
-            // Don't set content, so read will fail
+        it('should return PDF file metadata without content', async () => {
+            const pdfFile = MockTFile.create('document.pdf', 'document.pdf', 'pdf');
+            mockVault.setFiles([pdfFile]);
 
             const llmFile: LLMFile = {
-                type: 'text',
-                path: 'missing.md',
-                name: 'missing.md',
+                type: 'pdf',
+                path: 'document.pdf',
+                name: 'document.pdf',
                 isFolder: false
             };
 
             const results = await loadLLMFileContent(mockVault as unknown as typeof Vault, llmFile);
-            expect(results).toHaveLength(0);
+
+            expect(results).toHaveLength(1);
+            expect(results[0].type).toBe('pdf');
+            expect(results[0].content).toBeUndefined(); // Content deferred to fileUtils
+            expect(results[0].path).toBe('document.pdf');
         });
     });
 
     describe('Folder Loading', () => {
         beforeEach(() => {
             const files = [
-                MockTFile.create('folder/file1.md', 'file1.md'),
-                MockTFile.create('folder/file2.md', 'file2.md'),
-                MockTFile.create('folder/subfolder/file3.md', 'file3.md'),
-                MockTFile.create('other/file4.md', 'file4.md')
+                MockTFile.create('folder/file1.md', 'file1.md', 'md'),
+                MockTFile.create('folder/file2.md', 'file2.md', 'md'),
+                MockTFile.create('folder/subfolder/file3.md', 'file3.md', 'md'),
+                MockTFile.create('folder/document.pdf', 'document.pdf', 'pdf'),
+                MockTFile.create('other/file4.md', 'file4.md', 'md')
             ];
 
             mockVault.setFiles(files);
             mockVault.setFileContent('folder/file1.md', '# File 1');
             mockVault.setFileContent('folder/file2.md', '# File 2');
             mockVault.setFileContent('folder/subfolder/file3.md', '# File 3');
+            mockVault.setFileContent('folder/document.pdf', 'PDF content');
             mockVault.setFileContent('other/file4.md', '# File 4');
         });
 
-        it('should load all files in a folder', async () => {
+        it('should load all markdown and PDF files in a folder', async () => {
             const llmFolder: LLMFile = {
                 type: 'folder',
                 path: 'folder',
@@ -259,17 +263,18 @@ describe('loadLLMFileContent', () => {
 
             const results = await loadLLMFileContent(mockVault as unknown as typeof Vault, llmFolder);
 
-            expect(results).toHaveLength(3); // folder/file1.md, folder/file2.md, folder/subfolder/file3.md
+            expect(results).toHaveLength(4); // folder/file1.md, folder/file2.md, folder/subfolder/file3.md, folder/document.pdf
 
             const paths = results.map(f => f.path).sort();
             expect(paths).toEqual([
+                'folder/document.pdf',
                 'folder/file1.md',
                 'folder/file2.md',
                 'folder/subfolder/file3.md'
             ]);
         });
 
-        it('should load content for all files in folder', async () => {
+        it('should return metadata for all files without loading content', async () => {
             const llmFolder: LLMFile = {
                 type: 'folder',
                 path: 'folder',
@@ -280,10 +285,16 @@ describe('loadLLMFileContent', () => {
             const results = await loadLLMFileContent(mockVault as unknown as typeof Vault, llmFolder);
 
             const file1 = results.find(f => f.path === 'folder/file1.md');
-            expect(file1?.content).toBe('# File 1');
+            expect(file1?.type).toBe('text');
+            expect(file1?.content).toBeUndefined(); // Content deferred to fileUtils
 
             const file2 = results.find(f => f.path === 'folder/file2.md');
-            expect(file2?.content).toBe('# File 2');
+            expect(file2?.type).toBe('text');
+            expect(file2?.content).toBeUndefined(); // Content deferred to fileUtils
+
+            const pdfFile = results.find(f => f.path === 'folder/document.pdf');
+            expect(pdfFile?.type).toBe('pdf');
+            expect(pdfFile?.content).toBeUndefined(); // Content deferred to fileUtils
         });
 
         it('should set isFolder to false for expanded files', async () => {
@@ -313,11 +324,7 @@ describe('loadLLMFileContent', () => {
             expect(results).toHaveLength(0);
         });
 
-        it('should handle file read errors in folders gracefully', async () => {
-            // Set up files but don't set content for one
-            mockVault.setFileContent('folder/file1.md', '# File 1');
-            // folder/file2.md will fail to read
-
+        it('should return all file metadata regardless of content availability', async () => {
             const llmFolder: LLMFile = {
                 type: 'folder',
                 path: 'folder',
@@ -327,9 +334,10 @@ describe('loadLLMFileContent', () => {
 
             const results = await loadLLMFileContent(mockVault as unknown as typeof Vault, llmFolder);
 
-            // Should still get the files that loaded successfully
-            expect(results.length).toBeGreaterThan(0);
+            // Should get metadata for all files (content loading happens in fileUtils)
+            expect(results.length).toBe(4);
             expect(results.some(f => f.path === 'folder/file1.md')).toBe(true);
+            expect(results.some(f => f.path === 'folder/document.pdf')).toBe(true);
         });
     });
 });

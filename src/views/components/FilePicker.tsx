@@ -97,56 +97,30 @@ export const fuzzySearchFolders = (query: string, folders: TFolder[]): FileResul
     return fuzzySearchGeneric(query, folders, 'folder');
 };
 
-// Lazy loading utility function
+// Create LLMFile metadata without loading content - fileUtils will handle loading later
 export const loadLLMFileContent = async (vault: Vault, llmFile: LLMFile): Promise<LLMFile[]> => {
     if (llmFile.isFolder) {
-        // Load all markdown files in the folder
-        const folderFiles = vault.getMarkdownFiles().filter(file => 
-            file.path.startsWith(llmFile.path + '/')
+        // Get all markdown and PDF files in the folder
+        const folderFiles = vault.getAllLoadedFiles().filter((f): f is TFile => 
+            f instanceof TFile && 
+            f.path.startsWith(llmFile.path + '/')
         );
         
-        const loadedFiles: LLMFile[] = [];
-        for (const file of folderFiles) {
-            try {
-                const content = await vault.read(file);
-                loadedFiles.push({
-                    type: getFileType(file.extension),
-                    path: file.path,
-                    name: file.name,
-                    content: content,
-                    isFolder: false
-                });
-            } catch (error) {
-                console.error(`Error reading file ${file.path}:`, error);
-            }
-        }
-        return loadedFiles;
+        return folderFiles.map(file => ({
+            type: getFileType(file.extension),
+            path: file.path,
+            name: file.name,
+            isFolder: false
+        }));
     } else {
-        // Load single file content
-        if (llmFile.content) {
-            // Already loaded
-            return [llmFile];
-        }
-        
-        const file = vault.getAbstractFileByPath(llmFile.path);
-        if (file instanceof TFile) {
-            try {
-                const content = await vault.read(file);
-                return [{
-                    ...llmFile,
-                    content: content
-                }];
-            } catch (error) {
-                console.error(`Error reading file ${llmFile.path}:`, error);
-                return [];
-            }
-        }
-        return [];
+        return [llmFile];
     }
 };
 
 const getFiles = (vault: Vault): TFile[] => {
-    return vault.getMarkdownFiles();
+    return vault.getAllLoadedFiles().filter((f): f is TFile => 
+        f instanceof TFile
+    );
 };
 const getFolders = (vault: Vault): TFolder[] => {
     const folders = vault.getAllLoadedFiles().filter((f): f is TFolder => f instanceof TFolder);
