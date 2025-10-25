@@ -48,6 +48,19 @@ const AuthButton: React.FC<AuthButtonProps> = ({ server }) => {
         updateAuthState();
     }, [updateAuthState]);
 
+    // Listen for auth completion events
+    React.useEffect(() => {
+        const handleAuthComplete = (e: CustomEvent) => {
+            if (e.detail.serverUrl === server.url) {
+                setIsWaitingForCallback(false);
+                updateAuthState();
+            }
+        };
+
+        window.addEventListener('mcp-auth-complete', handleAuthComplete as EventListener);
+        return () => window.removeEventListener('mcp-auth-complete', handleAuthComplete as EventListener);
+    }, [server.url, updateAuthState]);
+
     const handleAuth = async () => {
         const oauthClient = getOAuthClient();
         if (!oauthClient) return;
@@ -178,6 +191,14 @@ const MCPServerItem: React.FC<MCPServerItemProps> = ({ server, onUpdate, onDelet
                         />
                         Enabled
                     </label>
+                    <label className="nc-flex nc-items-center nc-gap-2 nc-text-sm nc-text-muted nc-cursor-pointer">
+                        <input
+                            type="checkbox"
+                            checked={server.clientSideOnly ?? false}
+                            onChange={(e) => handleServerUpdate('clientSideOnly', e.target.checked)}
+                        />
+                        Client-side Only
+                    </label>
                     <button
                         className="nc-btn nc-btn--ghost nc-text-error nc-text-lg nc-p-1 nc-rounded-sm"
                         onClick={() => onDelete(server.id)}
@@ -258,7 +279,8 @@ export const MCPSettingsReact: React.FC = () => {
             name: `MCP Server ${mcpServers.length + 1}`,
             url: '',
             enabled: true,
-            transport: 'websocket'
+            transport: 'websocket',
+            clientSideOnly: true // Default to client-side for new servers (safer default)
         };
 
         await addMCPServer(newServer);

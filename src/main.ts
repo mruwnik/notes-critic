@@ -53,15 +53,20 @@ export default class NotesCritic extends Plugin {
         });
 
         this.registerObsidianProtocolHandler(MCP_AUTH_CALLBACK, async (e) => {
-            const parameters = e as unknown as { code: string, state: string, serverUrl: string };
+            const parameters = e as unknown as { code: string, state: string };
 
-            const decodedServerUrl = decodeURIComponent(parameters.serverUrl);
-            const oauthClient = new OAuthClient(decodedServerUrl);
+            // Retrieve server URL from sessionStorage using state
+            const serverUrl = OAuthClient.getServerUrlForState(parameters.state);
+            if (!serverUrl) {
+                throw new Error('Server URL not found for this OAuth state');
+            }
+
+            const oauthClient = new OAuthClient(serverUrl);
             const tokens = await oauthClient.exchangeCodeForToken(parameters.code, parameters.state);
 
-            const config = this.settings.mcpServers.find(s => s.url === decodedServerUrl);
+            const config = this.settings.mcpServers.find(s => s.url === serverUrl);
             if (!config) {
-                throw new Error(`No MCP client found for server URL: ${parameters.serverUrl}`);
+                throw new Error(`No MCP client found for server URL: ${serverUrl}`);
             }
 
             config.apiKey = tokens.access_token;
@@ -72,7 +77,10 @@ export default class NotesCritic extends Plugin {
             this.settings.mcpClients.push(server);
             const tools = await server.getTools();
             this.settings.enabledTools = [...this.settings.enabledTools, ...tools.map(t => t.name)];
-            this.saveSettings();
+            await this.saveSettings();
+
+            // Notify settings UI that authentication completed
+            window.dispatchEvent(new CustomEvent('mcp-auth-complete', { detail: { serverUrl } }));
         });
 
         this.addRibbonIcon(

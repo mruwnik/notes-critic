@@ -75,6 +75,7 @@ export interface MCPServerConfig {
     args?: string[];
     env?: Record<string, string>;
     apiKey?: string;
+    clientSideOnly?: boolean; // If true, tools are executed client-side only, not passed to LLM provider
 }
 
 export interface MCPServerState {
@@ -206,5 +207,9 @@ export abstract class BaseMCPClient {
     abstract hasTool(toolName: string): Promise<boolean>;
     abstract toolCall(toolName: string, args: Record<string, any>): Promise<any>;
     abstract testConnection(): Promise<boolean>;
+
+    isClientSideOnly(): boolean {
+        return this.serverConfig.clientSideOnly ?? false;
+    }
 }
 

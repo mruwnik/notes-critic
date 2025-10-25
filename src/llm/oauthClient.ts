@@ -39,7 +39,8 @@ export class OAuthClient {
     constructor(serverUrl: string) {
         const serverUrlObj = new URL(serverUrl);
         this.baseUrl = `${serverUrlObj.protocol}//${serverUrlObj.hostname}${serverUrlObj.port ? `:${serverUrlObj.port}` : ''}`;
-        this.serverUrl = serverUrl;
+        // Store normalized server URL without query parameters or hash
+        this.serverUrl = `${serverUrlObj.protocol}//${serverUrlObj.host}${serverUrlObj.pathname}`;
         this.loadStoredTokens();
     }
 
@@ -64,9 +65,16 @@ export class OAuthClient {
         return `oauth_code_verifier_${this.serverUrl}`;
     }
 
+    private serverUrlForStateKey(state: string): string {
+        return `oauth_serverurl_${state}`;
+    }
+
+    public static getServerUrlForState(state: string): string | null {
+        return sessionStorage.getItem(`oauth_serverurl_${state}`);
+    }
+
     private getRedirectUri(): string {
-        const encodedServerUrl = encodeURIComponent(this.serverUrl);
-        return `obsidian://${MCP_AUTH_CALLBACK}?serverUrl=${encodedServerUrl}`;
+        return `obsidian://${MCP_AUTH_CALLBACK}`;
     }
 
     private clientIdKey(): string {
@@ -245,6 +253,9 @@ export class OAuthClient {
         const state = this.generateRandomString(32);
         sessionStorage.setItem(this.stateKey(), state);
 
+        // Store server URL keyed by state for retrieval in callback
+        sessionStorage.setItem(this.serverUrlForStateKey(state), this.serverUrl);
+
         // Build authorization URL
         const authUrl = new URL(metadata.authorization_endpoint);
         authUrl.searchParams.set('client_id', client.client_id);
@@ -318,6 +329,7 @@ export class OAuthClient {
         // Clean up session storage
         sessionStorage.removeItem(this.codeVerifierKey());
         sessionStorage.removeItem(this.stateKey());
+        sessionStorage.removeItem(this.serverUrlForStateKey(state));
 
         return tokens;
     }

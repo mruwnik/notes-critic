@@ -97,7 +97,15 @@ export class AnthropicProvider extends BaseLLMProvider {
     protected getTools(config: Record<string, any>, enabledTools: string[]): Record<string, any> {
         const model = this.getModel()
         const availableTools = this.getDefaultTools(model).filter(tool => enabledTools.includes(tool.name))
-        const extras: any = { tools: availableTools }
+        const localTools = this.settings.mcpClients
+            ?.filter(client => client.isAuthenticated() && client.isClientSideOnly())
+            .flatMap(client => client.tools.map(tool => ({
+                name: tool.name,
+                description: tool.description,
+                input_schema: tool.inputSchema
+            })))
+            .filter(tool => enabledTools.includes(tool.name))
+        const extras: any = { tools: [...availableTools, ...localTools] }
 
         const extractTools = (client: MCPClient) => {
             const tools = client.tools.map(tool => tool.name).filter(tool => enabledTools.includes(tool))
@@ -116,8 +124,10 @@ export class AnthropicProvider extends BaseLLMProvider {
             }
         }
 
+        // Only pass non-client-side-only servers to Anthropic
         if (enabledTools && enabledTools.length > 0 && this.supportsMCP(model)) {
-            extras.mcp_servers = this.settings.mcpClients?.filter(client => client.isAuthenticated())
+            extras.mcp_servers = this.settings.mcpClients
+                ?.filter(client => client.isAuthenticated() && !client.isClientSideOnly())
                 .map(extractTools)
                 .filter(Boolean) || [];
         }

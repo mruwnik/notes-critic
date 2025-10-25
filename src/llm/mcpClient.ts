@@ -85,7 +85,7 @@ export class MCPClient extends BaseMCPClient {
         if (this.tools.length > 0 && !forceRefresh) {
             return this.tools;
         }
-        const response = await this.makeRequest(`/tools/list`, {
+        const response = await this.makeRequest(``, {
             body: {
                 jsonrpc: '2.0',
                 id: Date.now(),
@@ -111,14 +111,17 @@ export class MCPClient extends BaseMCPClient {
     }
 
     public async toolCall(toolName: string, args: Record<string, any>): Promise<any> {
-        const response = await this.makeRequest(`${toolName}`, {
+        // Ensure args is always an object, never a string or null
+        const normalizedArgs = (args && typeof args === 'object' && !Array.isArray(args)) ? args : {};
+
+        const response = await this.makeRequest(``, {
             body: {
                 jsonrpc: '2.0',
                 id: Date.now(),
                 method: "tools/call",
                 params: {
                     name: toolName,
-                    arguments: args,
+                    arguments: normalizedArgs,
                 },
             },
         })
