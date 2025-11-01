@@ -30,7 +30,16 @@ describe('MemoryTool', () => {
                 modify: jest.fn(),
                 create: jest.fn(),
                 createFolder: jest.fn(),
-                delete: jest.fn()
+                delete: jest.fn(),
+                adapter: {
+                    exists: jest.fn().mockResolvedValue(false),
+                    stat: jest.fn(),
+                    read: jest.fn(),
+                    write: jest.fn(),
+                    remove: jest.fn(),
+                    mkdir: jest.fn(),
+                    list: jest.fn().mockResolvedValue({ files: [], folders: [] })
+                }
             },
             fileManager: {
                 renameFile: jest.fn()
@@ -250,9 +259,9 @@ describe('MemoryTool', () => {
             const result = await memoryTool.executeCommand(command);
 
             expect(result.success).toBe(true);
-            expect(mockApp.vault.createFolder).toHaveBeenCalledWith('memories/deep');
-            expect(mockApp.vault.createFolder).toHaveBeenCalledWith('memories/deep/nested');
-            expect(mockApp.vault.createFolder).toHaveBeenCalledWith('memories/deep/nested/path');
+            expect(mockApp.vault.adapter.mkdir).toHaveBeenCalledWith('memories/deep');
+            expect(mockApp.vault.adapter.mkdir).toHaveBeenCalledWith('memories/deep/nested');
+            expect(mockApp.vault.adapter.mkdir).toHaveBeenCalledWith('memories/deep/nested/path');
             expect(mockApp.vault.create).toHaveBeenCalledWith('memories/deep/nested/path/file.md', 'Content');
         });
 

@@ -1,5 +1,5 @@
 import { BaseLLMProvider, ProviderConfig, StreamParseResult } from "llm/providers/Base";
-import { browserToolDefinition, textEditorToolDefinition, memoryToolDefinition } from "llm/tools";
+import { browserToolDefinition, textEditorToolDefinition, memoryToolDefinition, createFunctionTool } from "llm/tools";
 import { ConversationTurn } from "types";
 import { NotesCriticSettings } from "types";
 import { LLMFile } from "types";
@@ -9,21 +9,26 @@ export class OpenAIProvider extends BaseLLMProvider {
     protected createConfig(messages: ConversationTurn[], systemPrompt: string, thinking: boolean, enabledTools: string[]): ProviderConfig {
         this.validateApiKey();
         const extras: any = {}
+        const activeToolNames = enabledTools || [];
 
-        // Add text editor tool
-        const baseTools = [
-            { ...browserToolDefinition, type: 'function' },
-            { ...textEditorToolDefinition, type: 'function' },
-            { ...memoryToolDefinition, type: 'function' }
-        ].filter(tool => enabledTools.includes(tool.name));
-        extras.tools = baseTools;
+        const builtinTools = [
+            browserToolDefinition,
+            textEditorToolDefinition,
+            memoryToolDefinition
+        ];
 
-        if (enabledTools && enabledTools.length > 0) {
+        const enabledBuiltinTools = builtinTools
+            .filter(tool => activeToolNames.includes(tool.name))
+            .map(createFunctionTool);
+
+        extras.tools = enabledBuiltinTools;
+
+        if (activeToolNames.length > 0) {
             // Add MCP configurations for each enabled server
             const mcpConfigs = this.settings.mcpClients?.filter(client => client.isAuthenticated())
                 .map(client => {
                     const clientTools = client.tools
-                        .filter(tool => enabledTools.includes(tool.name))
+                        .filter(tool => activeToolNames.includes(tool.name))
                         .map(tool => tool.name);
 
                     if (clientTools.length === 0) return null;

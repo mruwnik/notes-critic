@@ -28,6 +28,8 @@ describe('Types and Constants', () => {
       expect(DEFAULT_SETTINGS).toHaveProperty('mcpEnabled');
       expect(DEFAULT_SETTINGS).toHaveProperty('mcpServers');
       expect(DEFAULT_SETTINGS).toHaveProperty('mcpMode');
+      expect(DEFAULT_SETTINGS).toHaveProperty('memoryDirectory');
+      expect(DEFAULT_SETTINGS).toHaveProperty('memoryMaxViewCharacters');
     });
 
     it('should have sensible default values', () => {
@@ -40,6 +42,8 @@ describe('Types and Constants', () => {
       expect(DEFAULT_SETTINGS.mcpEnabled).toBe(false);
       expect(DEFAULT_SETTINGS.mcpMode).toBe('disabled');
       expect(Array.isArray(DEFAULT_SETTINGS.mcpServers)).toBe(true);
+      expect(DEFAULT_SETTINGS.memoryDirectory).toBe('memories');
+      expect(DEFAULT_SETTINGS.memoryMaxViewCharacters).toBe(4000);
     });
 
     it('should have non-empty prompt templates', () => {

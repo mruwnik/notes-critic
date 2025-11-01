@@ -2,6 +2,10 @@ import { App, TFile } from 'obsidian';
 import { ToolDefinition } from 'types';
 import * as fileOps from './fileOperations';
 
+function isPromise<T>(value: any): value is Promise<T> {
+    return value && typeof value.then === 'function';
+}
+
 export interface TextEditorToolResult {
     success: boolean;
     content?: string;
@@ -77,8 +81,14 @@ export class TextEditorTool {
         return path.replace(/^\/+/, '');
     }
 
+    private async getFile(normalizedPath: string): Promise<TFile | null> {
+        const maybeFile = this.app.vault.getAbstractFileByPath(normalizedPath);
+        const file = isPromise<TFile | null>(maybeFile) ? await maybeFile : maybeFile;
+        return file instanceof TFile ? file : null;
+    }
+
     private async getFileAndSaveHistory(normalizedPath: string, originalPath: string): Promise<{ file: TFile; content: string } | TextEditorToolResult> {
-        const file = this.app.vault.getAbstractFileByPath(normalizedPath);
+        const file = await this.getFile(normalizedPath);
 
         if (!(file instanceof TFile)) {
             return {
@@ -155,7 +165,7 @@ export class TextEditorTool {
                 };
             }
 
-            const file = this.app.vault.getAbstractFileByPath(normalizedPath);
+            const file = await this.getFile(normalizedPath);
             if (!(file instanceof TFile)) {
                 return {
                     success: false,
@@ -182,7 +192,7 @@ export class TextEditorTool {
     async getFileStats(path: string): Promise<TextEditorToolResult> {
         try {
             const normalizedPath = this.normalizePath(path);
-            const file = this.app.vault.getAbstractFileByPath(normalizedPath);
+            const file = await this.getFile(normalizedPath);
 
             if (!(file instanceof TFile)) {
                 return {

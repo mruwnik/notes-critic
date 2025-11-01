@@ -337,6 +337,18 @@ export const SettingsTabReact: React.FC = () => {
                 onChange={(value) => updateSetting('memoryDirectory', value)}
             />
 
+            <TextSetting
+                name="Memory View Character Limit"
+                desc="Maximum number of characters returned when reading memory files to keep responses manageable"
+                placeholder="4000"
+                value={settings.memoryMaxViewCharacters}
+                onChange={async (value) => {
+                    const parsed = value ? parseInteger(value, 1) : 0;
+                    await updateSetting('memoryMaxViewCharacters', parsed || 0);
+                }}
+                parser={(value) => value && parseInteger(value, 1)}
+            />
+
             {/* MCP Settings */}
             <SectionHeader title="Model Context Protocol (MCP)" />
             <MCPSettingsReact />

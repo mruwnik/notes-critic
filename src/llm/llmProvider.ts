@@ -41,7 +41,11 @@ export class LLMProvider {
                 const textEditorTool = new TextEditorTool(this.app);
                 return textEditorTool.executeCommand(toolCall?.input as TextEditorCommand)
             case 'memory':
-                const memoryTool = new MemoryTool(this.app, this.settings.memoryDirectory);
+                const memoryTool = new MemoryTool(
+                    this.app,
+                    this.settings.memoryDirectory,
+                    this.settings.memoryMaxViewCharacters
+                );
                 return memoryTool.executeCommand(toolCall?.input as MemoryCommand)
             case 'web_browser':
                 return fetchPage(toolCall?.input as string)

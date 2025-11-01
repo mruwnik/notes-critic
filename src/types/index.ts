@@ -63,6 +63,7 @@ export interface NotesCriticSettings {
     feedbackPrompt: string;
     logPath: string;
     memoryDirectory: string;
+    memoryMaxViewCharacters: number;
     enabledTools: string[];
 }
 

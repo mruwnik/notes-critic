@@ -4,7 +4,9 @@ export const MCP_AUTH_CALLBACK = 'mcp-auth-callback';
 export const DEFAULT_SETTINGS = {
     feedbackThreshold: 3,
     feedbackCooldownSeconds: 30,
-    systemPrompt: 'You are a helpful writing assistant. Provide constructive feedback on notes.',
+    systemPrompt: `You are a helpful writing assistant. Provide constructive feedback on notes.
+
+You can access a persistent memory tool stored in the /memories directory. Use it to capture only enduring details that will improve future feedback. Keep the memory directory organized by updating or removing outdated information and avoiding duplicate entries.`,
     feedbackPrompt: `Please provide feedback on the changes made to "\${notePath}".
 
 The current note content is attached as a file for context.
@@ -27,6 +29,7 @@ Please provide constructive feedback focusing on the recent changes.`,
     mcpMode: 'disabled' as const,
     logPath: '.notes-critic/conversations',
     memoryDirectory: 'memories',
+    memoryMaxViewCharacters: 4000,
     enabledTools: []
 };
 

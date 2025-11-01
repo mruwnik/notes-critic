@@ -65,7 +65,14 @@ describe('TextEditorTool', () => {
         path: {
           dirname: jest.fn((path: string) => path.split('/').slice(0, -1).join('/') || ''),
           exists: jest.fn()
-        }
+        },
+        exists: jest.fn().mockResolvedValue(false),
+        stat: jest.fn(),
+        read: jest.fn(),
+        write: jest.fn(),
+        remove: jest.fn(),
+        mkdir: jest.fn(),
+        list: jest.fn().mockResolvedValue({ files: [], folders: [] })
       }
     };
 

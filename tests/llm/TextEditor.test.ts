@@ -29,7 +29,16 @@ describe('TextEditorTool', () => {
         read: jest.fn(),
         modify: jest.fn(),
         create: jest.fn(),
-        getFiles: jest.fn()
+        getFiles: jest.fn(),
+        adapter: {
+          exists: jest.fn().mockResolvedValue(false),
+          stat: jest.fn(),
+          read: jest.fn(),
+          write: jest.fn(),
+          remove: jest.fn(),
+          mkdir: jest.fn(),
+          list: jest.fn().mockResolvedValue({ files: [], folders: [] })
+        }
       }
     };
 
@@ -52,7 +61,9 @@ describe('TextEditorTool', () => {
 
     it('should handle execution errors', async () => {
       const command: TextEditorCommand = { command: 'view', path: 'test.md' };
-      mockApp.vault.getAbstractFileByPath.mockRejectedValue(new Error('Vault error'));
+      mockApp.vault.getAbstractFileByPath.mockImplementation(() => {
+        throw new Error('Vault error');
+      });
 
       const result = await textEditorTool.executeCommand(command);
 
@@ -100,7 +111,7 @@ describe('TextEditorTool', () => {
       const result = await textEditorTool.executeCommand(command);
 
       expect(result.success).toBe(true);
-      expect(result.content).toContain('Directory listing for folder:');
+      expect(result.content).toContain('Directory: folder');
       expect(result.content).toContain('file: file1.md');
       expect(result.content).toContain('directory: subfolder');
     });

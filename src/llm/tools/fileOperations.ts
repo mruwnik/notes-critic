@@ -1,5 +1,14 @@
 import { App, TFile, TFolder } from 'obsidian';
 
+function isPromise<T>(value: any): value is Promise<T> {
+    return value && typeof value.then === 'function';
+}
+
+async function getAbstractFile(app: App, path: string): Promise<any> {
+    const maybeFile = app.vault.getAbstractFileByPath(path);
+    return isPromise(maybeFile) ? await maybeFile : maybeFile;
+}
+
 export interface FileOperationResult {
     success: boolean;
     content?: string;
@@ -8,7 +17,7 @@ export interface FileOperationResult {
 
 // Helper to get file content using vault or adapter API
 async function getFileContent(app: App, path: string): Promise<{ content: string; file: TFile | null }> {
-    const file = app.vault.getAbstractFileByPath(path);
+    const file = await getAbstractFile(app, path);
 
     if (file instanceof TFile) {
         const content = await app.vault.read(file);
@@ -46,7 +55,7 @@ export async function viewFile(
     maxCharacters?: number
 ): Promise<FileOperationResult> {
     try {
-        const abstractFile = app.vault.getAbstractFileByPath(path);
+        const abstractFile = await getAbstractFile(app, path);
 
         // Handle directories
         if (abstractFile instanceof TFolder) {
@@ -226,7 +235,7 @@ export async function createFile(
 ): Promise<FileOperationResult> {
     try {
         // Check if file already exists
-        const existingFile = app.vault.getAbstractFileByPath(path);
+        const existingFile = await getAbstractFile(app, path);
 
         if (existingFile instanceof TFile) {
             if (overwrite) {
@@ -296,7 +305,7 @@ async function ensureDirectoryExists(app: App, path: string): Promise<void> {
 
     for (const part of parts) {
         currentPath += (currentPath ? '/' : '') + part;
-        const exists = app.vault.getAbstractFileByPath(currentPath);
+        const exists = await getAbstractFile(app, currentPath);
 
         if (!exists) {
             // Check with adapter for hidden directories
@@ -321,7 +330,7 @@ export async function deleteFile(
     path: string
 ): Promise<FileOperationResult> {
     try {
-        const abstractFile = app.vault.getAbstractFileByPath(path);
+        const abstractFile = await getAbstractFile(app, path);
 
         if (abstractFile) {
             await app.vault.delete(abstractFile);
@@ -355,7 +364,7 @@ export async function renameFile(
     newPath: string
 ): Promise<FileOperationResult> {
     try {
-        const abstractFile = app.vault.getAbstractFileByPath(oldPath);
+        const abstractFile = await getAbstractFile(app, oldPath);
 
         if (abstractFile) {
             await app.fileManager.renameFile(abstractFile, newPath);
