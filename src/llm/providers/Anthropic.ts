@@ -106,7 +106,7 @@ export class AnthropicProvider extends BaseLLMProvider {
                 input_schema: tool.inputSchema
             })))
             .filter(tool => enabledTools.includes(tool.name))
-        const extras: any = { tools: [...availableTools, ...localTools] }
+        const extras: any = { tools: [...availableTools, ...localTools || []] }
 
         const extractTools = (client: MCPClient) => {
             const tools = client.tools.map(tool => tool.name).filter(tool => enabledTools.includes(tool))
