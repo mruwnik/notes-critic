@@ -49,27 +49,13 @@ const DetailedView: React.FC<DetailedViewProps> = ({
             document.removeEventListener('keydown', handleEscapeKey);
         };
     }, [onClose]);
-    const formatDuration = (ms: number) => {
-        const minutes = Math.floor(ms / 60000);
-        const hours = Math.floor(minutes / 60);
-        if (hours > 0) {
-            return `${hours}h ${minutes % 60}m`;
-        }
-        return `${minutes}m`;
-    };
 
-    const sessionDuration = Date.now() - sessionTokens.startTime;
-    const sessionCost = tokenTracker.estimateCost({
-        inputTokens: sessionTokens.totalInputTokens,
-        outputTokens: sessionTokens.totalOutputTokens,
-        totalTokens: sessionTokens.totalTokens
+    const displayTokens = conversationTokens || sessionTokens;
+    const conversationCost = tokenTracker.estimateCost({
+        inputTokens: displayTokens.totalInputTokens,
+        outputTokens: displayTokens.totalOutputTokens,
+        totalTokens: displayTokens.totalTokens
     }, currentModel);
-
-    const conversationCost = conversationTokens ? tokenTracker.estimateCost({
-        inputTokens: conversationTokens.totalInputTokens,
-        outputTokens: conversationTokens.totalOutputTokens,
-        totalTokens: conversationTokens.totalTokens
-    }, currentModel) : null;
 
     return (
         <div 
@@ -92,54 +78,26 @@ const DetailedView: React.FC<DetailedViewProps> = ({
                 </button>
             </div>
 
-            {conversationTokens && (
-                <div className="nc-mb-3">
-                    <div className="nc-font-semibold nc-mb-2">Current Conversation</div>
-                    <div className="nc-text-xs nc-leading-normal nc-space-y-1">
-                        <div className="nc-flex nc-justify-between">
-                            <span>Input:</span>
-                            <span>{tokenTracker.formatTokenCount(conversationTokens.totalInputTokens)}</span>
-                        </div>
-                        <div className="nc-flex nc-justify-between">
-                            <span>Output:</span>
-                            <span>{tokenTracker.formatTokenCount(conversationTokens.totalOutputTokens)}</span>
-                        </div>
-                        <div className="nc-flex nc-justify-between">
-                            <span>Total:</span>
-                            <span>{tokenTracker.formatTokenCount(conversationTokens.totalTokens)}</span>
-                        </div>
-                        {conversationCost && (
-                            <div className="nc-flex nc-justify-between">
-                                <span>Cost:</span>
-                                <span>{tokenTracker.formatCost(conversationCost.totalCost)}</span>
-                            </div>
-                        )}
-                    </div>
-                </div>
-            )}
-
             <div>
-                <div className="nc-font-semibold nc-mb-2">Session ({formatDuration(sessionDuration)})</div>
+                <div className="nc-font-semibold nc-mb-2">
+                    {conversationTokens ? 'Conversation' : 'Session (0m)'}
+                </div>
                 <div className="nc-text-xs nc-leading-normal nc-space-y-1">
                     <div className="nc-flex nc-justify-between">
                         <span>Input:</span>
-                        <span>{tokenTracker.formatTokenCount(sessionTokens.totalInputTokens)}</span>
+                        <span>{tokenTracker.formatTokenCount(displayTokens.totalInputTokens)}</span>
                     </div>
                     <div className="nc-flex nc-justify-between">
                         <span>Output:</span>
-                        <span>{tokenTracker.formatTokenCount(sessionTokens.totalOutputTokens)}</span>
+                        <span>{tokenTracker.formatTokenCount(displayTokens.totalOutputTokens)}</span>
                     </div>
                     <div className="nc-flex nc-justify-between">
                         <span>Total:</span>
-                        <span>{tokenTracker.formatTokenCount(sessionTokens.totalTokens)}</span>
+                        <span>{tokenTracker.formatTokenCount(displayTokens.totalTokens)}</span>
                     </div>
                     <div className="nc-flex nc-justify-between">
                         <span>Cost:</span>
-                        <span>{tokenTracker.formatCost(sessionCost.totalCost)}</span>
-                    </div>
-                    <div className="nc-flex nc-justify-between">
-                        <span>Conversations:</span>
-                        <span>{sessionTokens.conversationCount}</span>
+                        <span>{tokenTracker.formatCost(conversationCost.totalCost)}</span>
                     </div>
                     {currentModel && (
                         <div className="nc-mt-1">

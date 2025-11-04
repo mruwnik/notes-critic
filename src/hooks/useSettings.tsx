@@ -194,3 +194,8 @@ export const useToolSettings = () => {
         toggleTool
     };
 };
+
+export const useTokenTracker = (): TokenTracker | undefined => {
+    const { plugin } = useSettings();
+    return plugin.tokenTracker;
+};

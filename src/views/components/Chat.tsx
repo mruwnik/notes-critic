@@ -7,6 +7,7 @@ import { ChatInputReact } from 'views/components/ChatInput';
 import { ControlPanelReact } from 'views/components/ControlPanel';
 import { useConversationContext } from 'hooks/useConversationContext';
 import { useHistoryContext } from 'hooks/useHistoryContext';
+import { useTokenTracker } from 'hooks/useSettings';
 
 interface ChatViewComponentProps {
     // External event handlers that still need to be handled by ChatView
@@ -93,6 +94,7 @@ export const ChatViewComponent: React.FC<ChatViewComponentProps> = ({
     } = useConversationContext();
     
     const { saveHistory, listHistory } = useHistoryContext();
+    const tokenTracker = useTokenTracker();
     
     // Auto-save conversation when turns are completed
     const handleTurnComplete = useCallback(async (turn: ConversationTurn) => {
@@ -103,12 +105,10 @@ export const ChatViewComponent: React.FC<ChatViewComponentProps> = ({
             let history = toHistory();
             
             // Ensure the completed turn is included in the conversation
-            if (!history.conversation || history.conversation.length === 0) {
-                // Build conversation from existing turns plus the completed turn
-                const existingTurns = fullConversation.filter(t => t.id !== turn.id);
+            if (!history.conversation?.some(t => t.id === turn.id)) {
                 history = {
                     ...history,
-                    conversation: [...existingTurns, turn]
+                    conversation: [...(history.conversation || []), turn],
                 };
             }
             
@@ -121,7 +121,7 @@ export const ChatViewComponent: React.FC<ChatViewComponentProps> = ({
         } catch (error) {
             console.error('Failed to auto-save conversation:', error);
         }
-    }, [toHistory, saveHistory, setTitle, fullConversation, listHistory]);
+    }, [toHistory, saveHistory, setTitle, fullConversation, listHistory, tokenTracker, conversationId]);
     
     // Handle feedback messages from parent
     const sendFeedbackMessage = useCallback(async (prompt: string, files?: LLMFile[], overrideSettings?: NotesCriticSettings) => {

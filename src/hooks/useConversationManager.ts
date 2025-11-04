@@ -2,8 +2,7 @@ import { useState, useCallback, useRef, useEffect } from 'react';
 import { ConversationTurn, UserInput, TurnStep, LLMStreamChunk, NotesCriticSettings, LLMFile, TurnChunk } from 'types';
 import { LLMProvider } from 'llm/llmProvider';
 import { History } from 'hooks/useHistoryManager';
-import { useApp, useSettings } from './useSettings';
-import { TokenTracker } from '../services/TokenTracker';
+import { useSettings } from './useSettings';
 
 // Generic UUID v4 generator that works across environments
 function generateUUID(): string {
@@ -94,6 +93,13 @@ export function useConversationManager(): UseConversationManagerReturn {
     const preserveContentOnCancel = useRef(new Set<string>());
     const turnsToIgnoreInErrorHandler = useRef(new Set<string>());
     const [onTurnCancelledWithoutContent, setOnTurnCancelledWithoutContent] = useState<((prompt: string) => void) | undefined>();
+
+    // Update plugin's current conversation ID when it changes
+    useEffect(() => {
+        if (plugin && 'setCurrentConversationId' in plugin && typeof plugin.setCurrentConversationId === 'function') {
+            plugin.setCurrentConversationId(conversationId);
+        }
+    }, [conversationId, plugin]);
 
     // Remove auto-save for now to avoid circular dependency issues
     // TODO: Re-implement auto-save after fixing the circular dependency
@@ -287,7 +293,7 @@ export function useConversationManager(): UseConversationManagerReturn {
                 callback?.({ type: 'error', error: chunk.content });
                 break;
         }
-    }, []);
+    }, [conversationId, plugin]);
 
     const streamSingleStep = useCallback(async (
         turn: ConversationTurn,
@@ -309,11 +315,36 @@ export function useConversationManager(): UseConversationManagerReturn {
         return step;
     }, [settings, app, processStreamChunk]);
 
+    const isRetryableError = (errorMessage: string): boolean => {
+        // Don't retry client errors (4xx) except for specific cases
+        if (errorMessage.includes('400') || errorMessage.includes('Bad Request')) {
+            return false; // Invalid request - retrying won't help
+        }
+        if (errorMessage.includes('401') || errorMessage.includes('Unauthorized')) {
+            return false; // Auth issue - retrying won't help
+        }
+        if (errorMessage.includes('403') || errorMessage.includes('Forbidden')) {
+            return false; // Permission issue - retrying won't help
+        }
+        if (errorMessage.includes('429') || errorMessage.includes('rate_limit')) {
+            return false; // Rate limit - need to wait, not retry immediately
+        }
+
+        // Network errors and server errors (5xx) might be retryable
+        if (errorMessage.includes('500') || errorMessage.includes('502') ||
+            errorMessage.includes('503') || errorMessage.includes('504') ||
+            errorMessage.includes('network') || errorMessage.includes('timeout')) {
+            return true;
+        }
+
+        return true;
+    };
+
     const shouldContinueToNextStep = useCallback((step: TurnStep, stepsLeft: number): boolean => {
         const toolCallsNeeded = Object.values(step.toolCalls).filter(tool => !tool.is_server_call);
         const hasToolCalls = toolCallsNeeded.length > 0;
-        const hasError = !!step.error;
-        return (hasToolCalls || hasError) && stepsLeft > 0;
+        const hasRetryableError = !!step.error && isRetryableError(step.error);
+        return (hasToolCalls || hasRetryableError) && stepsLeft > 0;
     }, []);
 
     const streamTurnResponse = useCallback(async (params: StreamTurnParams): Promise<void> => {
@@ -331,6 +362,11 @@ export function useConversationManager(): UseConversationManagerReturn {
         try {
             const conversationToUse = currentConversation || conversation;
             const completedStep = await streamSingleStep(turn, callback, abortController, overrideSettings, conversationToUse);
+
+            // Check if there's a non-retryable error
+            if (completedStep.error && !isRetryableError(completedStep.error)) {
+                throw new Error(completedStep.error);
+            }
 
             if (shouldContinueToNextStep(completedStep, stepsLeft)) {
                 const newStep = createEmptyStep();
@@ -471,15 +507,24 @@ export function useConversationManager(): UseConversationManagerReturn {
 
         cancelInference(false); // Cancel any running inference when loading new history
 
+        if (plugin?.tokenTracker && history.tokenUsage) {
+            plugin.tokenTracker.restoreConversationTokens(history.tokenUsage);
+        }
+
         // Set conversation after a brief delay to ensure clean state
         setTimeout(() => {
             // Force a completely new array reference to ensure React detects the change
             const newConversation = history.conversation ? [...history.conversation] : [];
             setConversation(newConversation);
         }, 0);
-    }, [cancelInference]);
+    }, [cancelInference, plugin]);
 
     const clearConversation = useCallback(() => {
+        // Clear token tracking for the old conversation
+        if (plugin?.tokenTracker) {
+            plugin.tokenTracker.clearConversation(conversationId);
+        }
+
         cancelInference(false);
         setConversation([]);
         setConversationId(generateUUID());
@@ -488,15 +533,17 @@ export function useConversationManager(): UseConversationManagerReturn {
         // Clear all ignore flags when clearing conversation
         turnsToIgnoreInErrorHandler.current.clear();
         preserveContentOnCancel.current.clear();
-    }, [cancelInference]);
+    }, [cancelInference, plugin, conversationId]);
 
     const toHistory = useCallback((): History => {
+        console.log("token tracker", plugin?.tokenTracker);
         return {
             id: conversationId,
             title,
-            conversation
+            conversation,
+            tokenUsage: plugin?.tokenTracker?.getConversationTokens(conversationId) || undefined
         };
-    }, [conversationId, title, conversation]);
+    }, [conversationId, title, conversation, plugin]);
 
     // Clean up ignore flags for turns that are no longer in conversation
     useEffect(() => {

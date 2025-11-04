@@ -38,6 +38,7 @@ export class TokenTracker {
         const now = Date.now();
 
         // Update conversation tokens
+        console.log("adding usage", conversationId, usage);
         let convTokens = this.conversationTokens.get(conversationId);
         if (!convTokens) {
             convTokens = {
@@ -76,6 +77,12 @@ export class TokenTracker {
 
     clearConversation(conversationId: string): void {
         this.conversationTokens.delete(conversationId);
+    }
+
+    restoreConversationTokens(conversationTokens: ConversationTokens): void {
+        // Restore conversation tokens from saved history without affecting session tokens
+        this.conversationTokens.set(conversationTokens.conversationId, conversationTokens);
+        this.notifyListeners();
     }
 
     resetSession(): void {

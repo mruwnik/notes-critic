@@ -17,6 +17,7 @@ export default class NotesCritic extends Plugin {
     mcpManager: MCPManager;
     settingsEvents: Events = new Events();
     tokenTracker: TokenTracker = new TokenTracker();
+    currentConversationId: string | null = null;
     private statusBarItem: HTMLElement | null = null;
     private statusBarReactRoot: Root | null = null;
 
@@ -103,8 +104,11 @@ export default class NotesCritic extends Plugin {
         if (!this.statusBarItem) {
             this.statusBarItem = this.addStatusBarItem();
             this.statusBarItem.addClass('notes-critic-status-bar-model-selector');
-
             this.statusBarReactRoot = createRoot(this.statusBarItem);
+        }
+
+        // Render/re-render with current conversation ID
+        if (this.statusBarReactRoot) {
             this.statusBarReactRoot.render(
                 React.createElement(SettingsProvider, {
                     app: this.app,
@@ -115,6 +119,7 @@ export default class NotesCritic extends Plugin {
                         React.createElement(TokenUsageDisplay, {
                             key: 'tokens',
                             tokenTracker: this.tokenTracker,
+                            currentConversationId: this.currentConversationId || undefined,
                             currentModel: this.settings.model,
                             className: 'status-bar-token-display'
                         }),
@@ -128,6 +133,11 @@ export default class NotesCritic extends Plugin {
                 })
             );
         }
+    }
+
+    setCurrentConversationId(conversationId: string): void {
+        this.currentConversationId = conversationId;
+        this.showStatusBarModelSelector(); // Re-render status bar
     }
 
     hideStatusBarModelSelector(): void {

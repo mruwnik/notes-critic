@@ -2,17 +2,20 @@ import { useCallback, useState } from "react";
 import { LLMProvider } from "llm/llmProvider";
 import { ConversationTurn } from "types";
 import { useApp, useSettings } from "./useSettings";
+import { ConversationTokens } from "services/TokenTracker";
 
 export interface History {
     id: string;
     title: string;
     conversation?: ConversationTurn[];
+    tokenUsage?: ConversationTokens;
 }
 
-const shortItem = ({ id, title, conversation }: History): History => ({ 
-    id, 
-    title, 
-    conversation: conversation ? [conversation[0]] : undefined 
+const shortItem = ({ id, title, conversation, tokenUsage }: History): History => ({
+    id,
+    title,
+    conversation: conversation ? [conversation[0]] : undefined,
+    tokenUsage
 });
 
 const loadTurn = (turn: ConversationTurn): ConversationTurn => ({
@@ -20,10 +23,11 @@ const loadTurn = (turn: ConversationTurn): ConversationTurn => ({
     timestamp: new Date(turn.timestamp)
 });
 
-const parseHistory = ({ id, title, conversation }: History): History => ({
+const parseHistory = ({ id, title, conversation, tokenUsage }: History): History => ({
     id,
     title,
-    conversation: conversation?.map(loadTurn)
+    conversation: conversation?.map(loadTurn),
+    tokenUsage
 });
 
 export const useHistoryManager = () => {
@@ -53,11 +57,13 @@ export const useHistoryManager = () => {
             await app.vault.adapter.mkdir(settings.logPath);
         }
 
+        console.log('Saving history item:', historyItem);
+        console.log('Log name:', logName(historyItem.id));
         await app.vault.adapter.write(logName(historyItem.id), JSON.stringify(historyItem));
 
         const shortHistory = shortItem(historyItem);
         setHistory(prev => new Map(prev.set(historyItem.id, shortHistory)));
-        
+
         // Update the array as well
         setHistoryList(prev => {
             const filtered = prev.filter(item => item.id !== historyItem.id);
@@ -107,13 +113,13 @@ export const useHistoryManager = () => {
 
         const items = await Promise.all(historyFiles.files.map(extractItem));
         const filteredItems = items.filter(item => item !== undefined && item.id !== undefined).sort(compare) as History[];
-        
+
         // Update both the Map and the array state
         const historyMap = new Map<string, History>();
         filteredItems.forEach(item => historyMap.set(item.id, item));
         setHistory(historyMap);
         setHistoryList(filteredItems);
-        
+
         return filteredItems;
     }, [app, settings.logPath]);
 
@@ -129,7 +135,7 @@ export const useHistoryManager = () => {
             newMap.delete(id);
             return newMap;
         });
-        
+
         setHistoryList(prev => prev.filter(item => item.id !== id));
     }, [app, logName]);
 
