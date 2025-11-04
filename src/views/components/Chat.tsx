@@ -284,20 +284,25 @@ export const ChatViewComponent: React.FC<ChatViewComponentProps> = ({
         }
     };
 
+    const scrollContainerRef = React.useRef<HTMLDivElement>(null);
+
     return (
-        <div className="nc-flex nc-flex-col nc-h-full nc-pb-4" onKeyDown={handleKeyDown}>
-            <div className="nc-p-3 nc-border-b">
-                <ControlPanelReact
-                    onFeedback={onFeedback}
-                    onClear={handleClear}
+        <div className="nc-flex nc-flex-col nc-h-full" onKeyDown={handleKeyDown}>
+            <div ref={scrollContainerRef} className="nc-flex-1 nc-overflow-y-auto nc-min-h-0">
+                <div className="nc-sticky nc-top-0 nc-z-10 nc-bg-primary nc-p-3 nc-border-b">
+                    <ControlPanelReact
+                        onFeedback={onFeedback}
+                        onClear={handleClear}
+                    />
+                </div>
+                
+                <FeedbackDisplayReact 
+                    conversation={conversation}
+                    isInferenceRunning={isInferenceRunning}
+                    onRerun={handleRerun}
+                    scrollContainerRef={scrollContainerRef}
                 />
             </div>
-            
-            <FeedbackDisplayReact 
-                conversation={conversation}
-                isInferenceRunning={isInferenceRunning}
-                onRerun={handleRerun} 
-            />
             
             <MainChatInput 
                 onSend={handleSend} 

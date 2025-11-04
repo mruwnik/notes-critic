@@ -69,6 +69,7 @@ export class ChatView extends ItemView {
 
     private buildUI(container: Element) {
         this.reactContainer = container.createDiv();
+        this.reactContainer.addClass('nc-h-full');
         this.setupReactComponents();
     }
 

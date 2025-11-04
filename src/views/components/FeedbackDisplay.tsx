@@ -6,7 +6,7 @@ import { FileChangeViewer } from 'views/components/FileChangeViewer';
 import { ChatMessage } from 'views/components/ChatMessage';
 import { ManualFeedbackViewer } from 'views/components/ManualFeedbackViewer';
 const CSS_CLASSES = {
-    messages: 'nc-flex-1 nc-overflow-y-auto nc-p-4 nc-space-y-3',
+    messages: 'nc-p-4 nc-space-y-3',
     stepContainer: 'nc-space-y-2',
     detailsSection: 'nc-bg-primary-alt nc-rounded nc-p-2',
     userInputElement: 'nc-border nc-rounded-lg nc-p-4 nc-bg-secondary',
@@ -34,6 +34,7 @@ interface FeedbackDisplayProps {
     conversation: ConversationTurn[];
     isInferenceRunning: boolean;
     onRerun?: (turn: ConversationTurn, newMessage?: string) => void;
+    scrollContainerRef?: React.RefObject<HTMLDivElement>;
 }
 
 const FormattedUserInput: React.FC<{ userInput: UserInput }> = ({ userInput }) => {
@@ -283,22 +284,20 @@ export const FeedbackDisplayReact: React.FC<FeedbackDisplayProps> = ({
     conversation,
     isInferenceRunning,
     onRerun,
+    scrollContainerRef,
 }) => {
-    const containerRef = useRef<HTMLDivElement>(null);
-
     const scrollToBottom = useCallback(() => {
-        if (containerRef.current) {
-            containerRef.current.scrollTop = containerRef.current.scrollHeight;
+        if (scrollContainerRef?.current) {
+            scrollContainerRef.current.scrollTop = scrollContainerRef.current.scrollHeight;
         }
-    }, []);
+    }, [scrollContainerRef]);
 
     useEffect(() => {
         scrollToBottom();
     }, [conversation, scrollToBottom]);
 
-
     return (
-        <div ref={containerRef} className={CSS_CLASSES.messages}>
+        <div className={CSS_CLASSES.messages}>
             {conversation.map(turn => (
                 <React.Fragment key={turn.id}>
                     <UserInputElement turn={turn} onRerun={onRerun} />

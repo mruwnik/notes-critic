@@ -487,6 +487,18 @@ Consistent primitives and component composition
     position: absolute;
 }
 
+.nc-sticky {
+    position: sticky;
+}
+
+.nc-top-0 {
+    top: 0;
+}
+
+.nc-z-10 {
+    z-index: 10;
+}
+
 .nc-top-2 {
     top: 0.5rem;
 }
