@@ -271,7 +271,21 @@ export function useConversationManager(): UseConversationManagerReturn {
                 break;
 
             case 'error':
-                throw new Error(chunk.content);
+                // Mark the step as having an error
+                step.error = chunk.content;
+
+                // If there's a tool call associated with this error (by id), add the error as its result
+                const errorToolCallId = chunk.id;
+                const toolWithError = step.toolCalls[errorToolCallId];
+                if (toolWithError) {
+                    toolWithError.result = { error: chunk.content };
+                } else {
+                    // No associated tool call, add error to content
+                    step.content = (step.content || '') + `Error: ${chunk.content}\n`;
+                }
+
+                callback?.({ type: 'error', error: chunk.content });
+                break;
         }
     }, []);
 
@@ -297,7 +311,9 @@ export function useConversationManager(): UseConversationManagerReturn {
 
     const shouldContinueToNextStep = useCallback((step: TurnStep, stepsLeft: number): boolean => {
         const toolCallsNeeded = Object.values(step.toolCalls).filter(tool => !tool.is_server_call);
-        return toolCallsNeeded.length > 0 && stepsLeft > 0;
+        const hasToolCalls = toolCallsNeeded.length > 0;
+        const hasError = !!step.error;
+        return (hasToolCalls || hasError) && stepsLeft > 0;
     }, []);
 
     const streamTurnResponse = useCallback(async (params: StreamTurnParams): Promise<void> => {

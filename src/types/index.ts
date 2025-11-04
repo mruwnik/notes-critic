@@ -28,6 +28,7 @@ export interface TurnStep {
     toolCalls: Record<string, ToolCall>;
     signature?: string;
     chunks?: TurnChunk[];
+    error?: string;
 }
 
 export interface ConversationTurn {
