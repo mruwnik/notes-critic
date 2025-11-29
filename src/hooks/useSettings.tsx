@@ -8,6 +8,7 @@ type AppPlugin = Plugin & {
     saveSettings(): Promise<void>;
     settingsEvents?: Events;
     tokenTracker?: TokenTracker;
+    setCurrentConversationId?: (id: string) => void;
 };
 
 interface SettingsContextType {
