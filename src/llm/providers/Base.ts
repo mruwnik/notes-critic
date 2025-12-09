@@ -46,7 +46,7 @@ export abstract class BaseLLMProvider {
         this.fileProcessor = new ObsidianFileProcessor(app);
     }
 
-    async *callLLM(messages: ConversationTurn[], systemPrompt?: string): AsyncGenerator<LLMStreamChunk, void, unknown> {
+    async *callLLM(messages: ConversationTurn[], systemPrompt?: string, enabledTools?: string[]): AsyncGenerator<LLMStreamChunk, void, unknown> {
         try {
             // Process files in messages
             const processedMessages = await this.processMessagesWithFiles(messages);
@@ -54,7 +54,7 @@ export abstract class BaseLLMProvider {
                 processedMessages,
                 systemPrompt || this.settings.systemPrompt,
                 this.settings.thinkingBudgetTokens > 0,
-                this.settings.enabledTools
+                enabledTools ?? this.settings.enabledTools
             );
 
             const response = this.streamResponse(config);
@@ -388,7 +388,7 @@ export abstract class BaseLLMProvider {
                 isComplete: false
             }
         ]
-        for await (const chunk of this.callLLM(titleConversation, "You're an expert at coming up with titles for conversations")) {
+        for await (const chunk of this.callLLM(titleConversation, "You're an expert at coming up with titles for conversations", [])) {
             if (chunk.type === 'content' && chunk.isComplete) {
                 return chunk.content.trim().slice(0, 60);
             }

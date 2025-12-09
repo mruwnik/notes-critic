@@ -70,7 +70,8 @@ const CLAUDE_4 = [
     'claude-sonnet-4-0',
     'claude-sonnet-4-5',
     'claude-opus-4-0',
-    'claude-opus-4-1'
+    'claude-opus-4-1',
+    'claude-opus-4-5'
 ]
 const getMemoryTool = (model: string) => {
     if (CLAUDE_4.includes(model)) {
@@ -108,29 +109,44 @@ export class AnthropicProvider extends BaseLLMProvider {
             .filter(tool => enabledTools.includes(tool.name))
         const extras: any = { tools: [...availableTools, ...localTools || []] }
 
-        const extractTools = (client: MCPClient) => {
+        const extractMcpServer = (client: MCPClient) => ({
+            name: client.getName(),
+            url: client.getServerUrl(),
+            type: "url",
+            authorization_token: client.getApiKey(),
+        })
+
+        const extractMcpToolset = (client: MCPClient) => {
             const tools = client.tools.map(tool => tool.name).filter(tool => enabledTools.includes(tool))
             if (tools.length === 0) {
                 return null
             }
+            const configs: Record<string, { enabled: boolean }> = {}
+            for (const tool of tools) {
+                configs[tool] = { enabled: true }
+            }
             return {
-                name: client.getName(),
-                url: client.getServerUrl(),
-                type: "url",
-                authorization_token: client.getApiKey(),
-                tool_configuration: {
-                    enabled: true,
-                    allowed_tools: tools
-                },
+                type: "mcp_toolset",
+                mcp_server_name: client.getName(),
+                default_config: { enabled: false },
+                configs,
             }
         }
 
         // Only pass non-client-side-only servers to Anthropic
         if (enabledTools && enabledTools.length > 0 && this.supportsMCP(model)) {
-            extras.mcp_servers = this.settings.mcpClients
-                ?.filter(client => client.isAuthenticated() && !client.isClientSideOnly())
-                .map(extractTools)
-                .filter(Boolean) || [];
+            const mcpClients = this.settings.mcpClients
+                ?.filter(client => client.isAuthenticated() && !client.isClientSideOnly()) || []
+            const mcpToolsets = mcpClients
+                .map(extractMcpToolset)
+                .filter((t): t is NonNullable<typeof t> => t !== null)
+            if (mcpToolsets.length > 0) {
+                const serverNamesWithTools = new Set(mcpToolsets.map(t => t.mcp_server_name))
+                extras.mcp_servers = mcpClients
+                    .filter(client => serverNamesWithTools.has(client.getName()))
+                    .map(extractMcpServer)
+                extras.tools = [...extras.tools, ...mcpToolsets]
+            }
         }
         return { ...config, ...extras, }
     }
@@ -163,7 +179,7 @@ export class AnthropicProvider extends BaseLLMProvider {
                 'Content-Type': 'application/json',
                 'x-api-key': this.getApiKey(),
                 'anthropic-version': '2023-06-01',
-                "anthropic-beta": "mcp-client-2025-04-04,context-management-2025-06-27"
+                "anthropic-beta": "mcp-client-2025-11-20,context-management-2025-06-27"
             },
             body: {
                 model: this.getModel(),

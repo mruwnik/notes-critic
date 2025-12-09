@@ -184,6 +184,7 @@ export default class NotesCritic extends Plugin {
 
     async saveSettings() {
         await this.saveData(this.settings);
+        this.settings.mcpClients = this.settings.mcpServers.map(s => new MCPClient(s));
         this.refreshChatViewModelSelectors();
 
         // Emit settings changed event for React components
